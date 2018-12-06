@@ -445,8 +445,39 @@ function volunteer_activity_assigne(){
     $result=CRM_Core_DAO::executeQuery($sql);
      if (is_a($result, 'CRM_Core_Error')) {
         $transaction->rollback();
-        return $result;
+         drupal_set_message(ts('We are sorry, Please Contact Site Administrator.'),'error');
+         CRM_Utils_System::redirect(CRM_Utils_System::url('available'));
       }
+    /**
+     *  Check for activity Status
+     * */
+    $sql=" SELECT status_id FROM civicrm_activity where id=%2 FOR UPDATE ";
+    $params= array(2 => array($activityID, 'Integer'));
+    $result=CRM_Core_DAO::executeQuery($sql,$params);
+    if (is_a($result, 'CRM_Core_Error')) {
+        $transaction->rollback();
+        // Raised Error Message
+         drupal_set_message(ts('We are sorry, Please Contact Site Administrator.'),'error');
+         CRM_Utils_System::redirect(CRM_Utils_System::url('available'));
+    }
+    if($result->fetch()){
+		if($result->status_id != 11){
+	      $transaction->rollback();
+	          drupal_set_message(ts('We are sorry, but this engagement (#%1) is no longer available.',array(1=>$activityID)),'error');
+              CRM_Utils_System::redirect(CRM_Utils_System::url('available'));
+			// Raised Error Message
+			
+		}
+		
+	}else{
+		 $transaction->rollback();
+		// Raised Error Message
+		 drupal_set_message(ts('We are sorry, but this engagement (#%1) is no longer available. Please try again later.',array(1=>$activityID)),'error');
+         CRM_Utils_System::redirect(CRM_Utils_System::url('available'));
+		
+		
+	}
+    
     $sql=" UPDATE civicrm_activity set status_id= %1 where id=%2 ";
     $params= array(1 => array(10, 'Integer'),
                    2 => array($activityID, 'Integer'));
@@ -514,7 +545,10 @@ function volunteer_activity_assigne(){
     *  Email Send Call here yet to code
     */
     drupal_set_message(ts('Volunteer has been Assigned'));
-  CRM_Utils_System::redirect(CRM_Utils_System::url('available'));
+    CRM_Utils_System::redirect(CRM_Utils_System::url('available'));
+   }else{
+	   drupal_set_message(ts('Volunteer has been Assigned'),'error');
+       CRM_Utils_System::redirect(CRM_Utils_System::url('available'));
    }
 }
 
