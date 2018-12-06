@@ -1,0 +1,5 @@
+name = View Alter.
+description = This is SIFMA Custom module(Email Alert/Client Side UI related Changes).
+core=7.x
+version=7.x
+; 

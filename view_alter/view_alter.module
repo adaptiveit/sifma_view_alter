@@ -1,0 +1,2545 @@
+<?php
+// $Id:  view_alter.module,v 1.103.2.2 2012/07/11 12:24:34 goba Exp $
+/**
+ * @file
+ * Enables the use of personal and site-wide request venue forms.
+ */
+ 
+ 
+function view_alter_views_api(){
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'view_alter') . '/includes/views',
+  );
+  
+}
+ 
+function view_alter_views_post_render(&$view, &$output, &$cache) {
+  if ($view->name == 'available_volunteer_opportunities') {
+         $output=html_entity_decode($output);
+         CRM_Core_Resources::singleton()->addCoreResources();
+          drupal_add_js('(function ($) {
+  Drupal.behaviors.signupConfirm = {
+    attach: function (context, settings) {
+      $("a.action-item.crm-hover-button", context).click(function () {
+      var url = $(this).attr("href");
+       CRM.confirm(function() {
+        window.location.href=url;
+          },{message: ts("Are you sure you want to sign up for this engagement?")});
+          //return confirm("Are you sure you want to sign up for this engagement?");
+          return false;
+      });
+    }
+  };
+})(jQuery);', array('type' => 'inline'));
+    }
+    
+    /*
+     *    View Render
+     */
+     if (/*$view->name == 'request_details' &&*/ arg(2)=='ajax') {
+      $popup_content =  t('Hello World') ;
+    // Checking JavaScript is enabled.
+    // If everything is ok and JavaScript is enabled — adding the necessary libraries to work with modal windows.
+    ctools_include('modal');
+    ctools_include('ajax');
+    // Forming a modal window.
+    $output1[] = ctools_modal_command_display(t($view->get_title()), $output);
+    // Outputting the formed window in the browser.
+    print ajax_render($output1);
+    drupal_exit();
+     
+   }
+   
+   
+   /*
+    *  Volunteer Release
+    */
+    if($view->name == 'volunteer_dashboard'){
+      $output=html_entity_decode($output);
+         CRM_Core_Resources::singleton()->addCoreResources();
+          drupal_add_js('(function ($) {
+          Drupal.behaviors.releaseConfirm = {
+          attach: function (context, settings) {
+            $("a.action-item.crm-hover-button", context).click(function () {
+              var url = $(this).attr("href");
+               CRM.confirm(function() {
+                window.location.href=url;
+              },{message: ts("Are you sure you want to release from this engagement?")});
+              //return confirm("Are you sure you want to sign up for this engagement?");
+              return false;
+            });
+          }
+          };
+        })(jQuery);', array('type' => 'inline'));
+            }
+            
+            
+            
+    /*
+     * Activiate Volunteer
+     */
+       if ($view->name == 'activate_volunteers') {
+           $output=html_entity_decode($output);
+           CRM_Core_Resources::singleton()->addCoreResources();
+            drupal_add_js('(function ($) {
+        Drupal.behaviors.activateConfirm = {
+        attach: function (context, settings) {
+          $("a.action-item.crm-hover-button.linkbutton-address", context).click(function () {
+            var url = $(this).attr("href");
+             CRM.confirm(function() {
+              window.location.href=url;
+            },{message: ts("Are you sure you want to activate this volunteer?")});
+            //return confirm("Are you sure you want to sign up for this engagement?");
+            return false;
+          });
+        }
+        };
+      })(jQuery);', array('type' => 'inline'));
+       drupal_add_js('(function ($) {
+        Drupal.behaviors.declineactivateConfirm = {
+        attach: function (context, settings) {
+          $("a.action-item.crm-decline-button.linkbutton-address", context).click(function () {
+            var url = $(this).attr("href");
+             CRM.confirm(function() {
+              window.location.href=url;
+            },{message: ts("Are you sure you want to decline this volunteer?")});
+            //return confirm("Are you sure you want to sign up for this engagement?");
+            return false;
+          });
+        }
+        };
+      })(jQuery);', array('type' => 'inline'));
+        }
+}
+
+
+/*
+ *   Alter View query
+ */
+ 
+function view_alter_views_query_alter(&$view, &$query)
+{
+  if ($view->name == 'activate_volunteers' 
+      || $view->name=='view_classroom_volunteers' 
+      || $view->name=='view_classroom_volunteers_on_map') {
+    if (!civicrm_initialize()) {
+        return FALSE;
+      }
+     GLOBAL $user;
+   $roles_array = $user->roles;
+   if(array_key_exists(4,$roles_array)
+      ||array_key_exists(8,$roles_array)
+      ||array_key_exists(9,$roles_array)){
+     $session = & CRM_Core_Session::singleton();
+         $u_contact_id=$session->get( 'userID' );
+         require_once 'CRM/Core/BAO/CustomValueTable.php';
+         $params=array('entityID'=>$u_contact_id,'custom_15'=>1);
+         $StateValue=CRM_Core_BAO_CustomValueTable::getValues($params);
+         if (CRM_Utils_Type::escape($StateValue['custom_15'], 'StateProvince', FALSE) === NULL){
+      $values=array('########'); 
+     }
+      if ( strpos($StateValue['custom_15'] ,CRM_Core_DAO::VALUE_SEPARATOR) !== false ) {
+                $value = substr( $StateValue['custom_15'], 1, -1 );
+                $values = explode( CRM_Core_DAO::VALUE_SEPARATOR, $value );
+             }
+          foreach($query->fields as $falias=>$tableinfo){
+        if($tableinfo['field']=='state_province_id'){
+          $alias=$tableinfo['table'];
+          $db_and = db_and()
+          ->condition("{$alias}.state_province_id", $values, 'IN');
+          $query->add_where(0,$db_and);
+          
+        }
+      }
+     } 
+   }
+   
+   if ($view->name == 'state_administrator_dashboard' 
+       || $view->name == 'state_administrator_dashboard_on_map'
+       || $view->name=='view_completed_engagements') {
+    if (!civicrm_initialize()) {
+        return FALSE;
+      }
+     GLOBAL $user;
+   $roles_array = $user->roles;
+   if(array_key_exists(4,$roles_array)
+      ||array_key_exists(8,$roles_array)
+      ||array_key_exists(9,$roles_array)){
+     $session = & CRM_Core_Session::singleton();
+         $u_contact_id=$session->get( 'userID' );
+         require_once 'CRM/Core/BAO/CustomValueTable.php';
+         $params=array('entityID'=>$u_contact_id,'custom_15'=>1);
+         $StateValue=CRM_Core_BAO_CustomValueTable::getValues($params);
+         if (CRM_Utils_Type::escape($StateValue['custom_15'], 'StateProvince', FALSE) === NULL){
+      $values=array('########'); 
+     }
+     if ( strpos($StateValue['custom_15'] ,CRM_Core_DAO::VALUE_SEPARATOR) !== false ) {
+                $value = substr( $StateValue['custom_15'], 1, -1 );
+                $values = explode( CRM_Core_DAO::VALUE_SEPARATOR, $value );
+             }
+          foreach($query->fields as $falias=>$tableinfo){
+        if($tableinfo['field']=='state_province_id'){
+          $alias=$tableinfo['table'];
+          $db_and = db_and()
+          ->condition("{$alias}.state_province_id", $values, 'IN');
+          $query->add_where(0,$db_and);
+          
+        }
+      }
+     } 
+   }
+   
+   /****
+    *  Firm Admin View Current Request
+    * 
+    * ***/
+    if ($view->name == 'adpt_view_current_requests' 
+        || $view->name =='adpt_administrator_manage_current_requests_on_map') {
+    if (!civicrm_initialize()) {
+        return FALSE;
+      }
+      $session = & CRM_Core_Session::singleton();
+      $u_contact_id=$session->get( 'userID' );
+      $u_contact_id=CRM_Core_DAO::getFieldValue('CRM_Contact_DAO_Contact',$u_contact_id,'employer_id','id');
+      foreach($query->fields as $falias=>$tableinfo){
+        if($tableinfo['field']=='status_id'){
+          $alias=$tableinfo['table'];
+          $db_or = db_or()
+          ->condition("{$alias}.status_id", array(9,11), 'IN');
+          $db_and = db_and()
+          ->condition("civicrm_contact_civicrm_activity_contact_1.employer_id", $u_contact_id)
+          ->condition("{$alias}.status_id", array(10,1), 'IN');
+          $db_or->condition($db_and);
+          $query->add_where(0,$db_or);
+        }
+      }
+      
+  }
+  /***
+   *  Firm Admin Past Engagement
+   * 
+   * **/
+   if ($view->name == 'adpt_administrator_view_past_engagements') {
+    if (!civicrm_initialize()) {
+        return FALSE;
+      }
+      $session = & CRM_Core_Session::singleton();
+      $u_contact_id=$session->get( 'userID' );
+      $u_contact_id=CRM_Core_DAO::getFieldValue('CRM_Contact_DAO_Contact',$u_contact_id,'employer_id','id');
+      foreach($query->fields as $falias=>$tableinfo){
+        if($tableinfo['field']=='status_id'){
+          $db_and = db_and()
+          ->condition("civicrm_contact_civicrm_activity_contact_1.employer_id", $u_contact_id);
+          $query->add_where(0,$db_and);
+        }
+      }
+      
+  }
+  /**
+   *   Firm Admin Engegment  Detail
+   * 
+   * **/
+   if ($view->name == 'adpt_iif_volunteer_request') {
+    if (!civicrm_initialize()) {
+        return FALSE;
+      }
+      $session = & CRM_Core_Session::singleton();
+      $u_contact_id=$session->get( 'userID' );
+      $u_contact_id=CRM_Core_DAO::getFieldValue('CRM_Contact_DAO_Contact',$u_contact_id,'employer_id','id');
+      foreach($query->fields as $falias=>$tableinfo){
+        if($tableinfo['field']=='status_id'){
+          $alias=$tableinfo['table'];
+          $db_or = db_or()
+          ->condition("{$alias}.status_id", array(9,11), 'IN');
+          $db_and = db_and()
+          ->condition("civicrm_contact_civicrm_activity_contact_1.employer_id", $u_contact_id)
+          ->condition("{$alias}.status_id", array(10,1,2,3,8), 'IN');
+          $db_or->condition($db_and);
+          $query->add_where(0,$db_or);
+        }
+      }
+      
+  }
+  
+}
+
+/*
+ *  Alter Activity Form
+ */
+function view_alter_civicrm_buildForm($formName, &$form) {
+  if($formName=='CRM_Activity_Form_Activity' && $form->getVar('_activityTypeId')==53){
+     GLOBAL $user;
+     $roles_array = $user->roles;
+     /*
+      * Admin Form Alter
+      */
+     
+     if(array_key_exists(4,$roles_array)
+      ||array_key_exists(8,$roles_array)
+      ||array_key_exists(9,$roles_array)){
+       // if($form->elementExists('assignee_contact_id') && $form->elementExists('target_contact_id')){
+      $status_id=CRM_Utils_Request::retrieve('status_id', 'Positive', $form);
+      $activityStatus= CRM_Core_PseudoConstant::activityStatus();
+      $session = CRM_Core_Session::singleton();
+      if(CRM_Utils_Array::value($status_id,$activityStatus)=='Scheduled'
+             ||CRM_Utils_Array::value($status_id,$activityStatus)=='Approved'
+             ||CRM_Utils_Array::value($status_id,$activityStatus)=='Matched'
+             ||CRM_Utils_Array::value($status_id,$activityStatus)=='Requested'){
+        
+        $session->pushUserContext(CRM_Utils_System::url('manage'));
+        
+      }elseif(CRM_Utils_Array::value($status_id,$activityStatus)=='Cancelled'
+             ||CRM_Utils_Array::value($status_id,$activityStatus)=='No-show'
+             ||CRM_Utils_Array::value($status_id,$activityStatus)=='Completed'){
+        
+        $session->pushUserContext(CRM_Utils_System::url('past'));
+      }
+      
+          //$form->getElement('assignee_contact_id')->freeze();
+          //$form->getElement('target_contact_id')->freeze();
+          
+          
+       // }
+        }
+        
+        /*
+         *  Educator End
+         */  
+    
+  }
+  if($formName=='CRM_Contact_Form_Contact' || $formName=='CRM_Contact_Form_Inline_CustomData'){
+     GLOBAL $user;
+     $roles_array = $user->roles;
+     if(array_key_exists(4,$roles_array)
+      ||array_key_exists(8,$roles_array)
+      ||array_key_exists(9,$roles_array)
+      ||array_key_exists(11,$roles_array)){
+    $tableID=false;
+      foreach($form->_groupTree as $grouptree){
+        if($grouptree['name']=='Dashboard_Access'){
+          $tableID=CRM_Utils_Array::value('table_id',$grouptree);
+          break;
+        }
+      }
+    if($tableID){
+      if($form->elementExists('custom_15_'.$tableID)){
+        $form->getElement('custom_15_'.$tableID)->freeze();
+      }
+      if($form->elementExists('custom_30_'.$tableID)){
+        $form->getElement('custom_30_'.$tableID)->freeze();
+      }
+      }
+    }
+  }
+    /**
+     *  Extend Nick Name element Maxsize;
+     * 
+     * **/
+  if($formName=='CRM_Contact_Form_Inline_ContactInfo' ||
+     $formName=='CRM_Contact_Form_Contact'){
+	 if($form->elementExists('nick_name')){
+     $elnickNameObj= & $form->getElement('nick_name');
+     $elnickNameObj->setAttribute('maxlength',1024);
+    }
+   }
+
+}
+
+/*
+ *  Redirect on activity submit
+ */
+
+function view_alter_civicrm_postProcess(  $formName, &$form  ){
+  
+  
+  
+}
+
+/*
+ *  Activity Templete Alter
+ */
+ 
+function view_alter_civicrm_alterTemplateFile($formName, &$form, $context, &$tplName) {
+   if(($formName=='CRM_Activity_Page_Tab' || $formName=='CRM_Activity_Form_Activity' ) && CRM_Utils_Request::retrieve('atype', 'Positive', $form)==53){
+     GLOBAL $user;
+     $roles_array = $user->roles;
+     /*
+      * Educator Form Alter
+      */
+     //if(in_array('Educator',$roles_array)){
+          $activityType=CRM_Utils_Request::retrieve('atype', 'Positive', $form);
+          $template = CRM_Core_Smarty::singleton();
+              $possibleTpl="CRM/Activity/Form/".$activityType."/Activity.tpl";
+        if ($template->template_exists($possibleTpl)) {
+        $tplName = $possibleTpl;
+        }
+       // }
+        
+        /*
+         *  Educator End
+         */  
+    
+  }
+   
+ }
+ 
+ 
+ 
+ /*
+  *  Menu
+  */
+function view_alter_menu() {
+$items['volunteer/activity/assign'] = array(
+    'page callback' => 'volunteer_activity_assigne',
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_NORMAL_ITEM,
+  );
+$items['volunteer/activity/release'] = array(
+    'page callback' => 'volunteer_activity_release',
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_NORMAL_ITEM,
+  );
+ $items['volunteer/activate/%'] = array(
+    'page callback' => 'volunteer_activiate',
+    'page arguments' => array(2),
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['volunteer/decline/%'] = array(
+    'page callback' => 'volunteer_decline',
+    'page arguments' => array(2),
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['approved-request/alert'] = array(
+    'page callback' => 'approved_request_alert',
+    'access arguments' => array('administer CiviCRM'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+  return $items;
+}
+
+
+
+
+
+
+
+function volunteer_activity_assigne(){
+  if (!civicrm_initialize()) {
+        return FALSE;
+      }
+  $activityID   =  CRM_Utils_Array::value('id', $_GET);
+  $session      =  CRM_Core_Session::singleton();
+  $currentUser  =  $session->get('userID');
+  GLOBAL $user;
+  $roles_array = $user->roles;
+  if(array_key_exists(6,$roles_array)){
+        
+    $transaction = new CRM_Core_Transaction();
+    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $assigneeID = CRM_Utils_Array::key('Activity Assignees', $activityContacts);
+    $str="( $activityID, $currentUser, $assigneeID )";
+    $sql   = "INSERT IGNORE INTO civicrm_activity_contact ( activity_id, contact_id, record_type_id ) VALUES $str;";
+    $result=CRM_Core_DAO::executeQuery($sql);
+     if (is_a($result, 'CRM_Core_Error')) {
+        $transaction->rollback();
+        return $result;
+      }
+    $sql=" UPDATE civicrm_activity set status_id= %1 where id=%2 ";
+    $params= array(1 => array(10, 'Integer'),
+                   2 => array($activityID, 'Integer'));
+    $result=CRM_Core_DAO::executeQuery($sql,$params);
+     if (is_a($result, 'CRM_Core_Error')) {
+        $transaction->rollback();
+        return $result;
+      }
+    /*CRM_Core_Session::setStatus(ts('Activity %1 has been saved. %2 %3',
+      array(
+      1 => $subject,
+      2 => $followupStatus,
+      3 => $mailStatus
+      )
+    ), ts('Saved'), 'success');*/
+    
+    $transaction->commit();
+    $mailToContacts = array();
+    $mailCCContacts = array();
+    $toExtra=array();
+    $TargetsContacts = viewAltergetContactNames($activityID, 'Activity Targets');
+    $assigneeContacts = viewAltergetContactNames($activityID, 'Activity Assignees');
+    //build an associative array with unique email addresses.
+    foreach ($TargetsContacts as $id => $dnc) {
+    if (isset($id) && array_key_exists($id, $TargetsContacts)) {
+      $toExtra[$TargetsContacts[$id]['email']] = $TargetsContacts[$id];
+      /*
+       *  Get Admin ID to mail
+       */
+       $stateAdmin=array();
+       //$stateAdmin  =viewAltergetAdminID($id,4);
+       $stateAdmin +=viewAltergetAdminID($id,8);
+       $stateAdmin +=viewAltergetAdminID($id,9);
+      if(!empty($stateAdmin)){
+      foreach($stateAdmin as $cid){
+        $contactInfo=  ViewAlterGetContactInfo($cid);
+        $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+        }
+      }
+      
+      /*
+       * End Email
+       */
+    }
+    }
+     foreach ($assigneeContacts as $id => $dnc) {
+      if (isset($id) && array_key_exists($id, $assigneeContacts)) {
+        $mailToContacts[$assigneeContacts[$id]['email']] = $assigneeContacts[$id];
+      }
+      }
+    if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+      $toExtra=NULL;
+    }
+    if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+      $mailCCContacts=NULL;
+    }
+              
+    if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+    // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+     viewAlterSendEmail($activityID, $mailToContacts, null, 76,$mailCCContacts,$toExtra);
+
+     }
+   
+   /*
+    *  Email Send Call here yet to code
+    */
+    drupal_set_message(ts('Volunteer has been Assigned'));
+  CRM_Utils_System::redirect(CRM_Utils_System::url('available'));
+   }
+}
+
+function volunteer_activity_release(){
+  if (!civicrm_initialize()) {
+        return FALSE;
+      }
+  $activityID   =  CRM_Utils_Array::value('id', $_GET);
+  $session      =  CRM_Core_Session::singleton();
+    $currentUser  =  $session->get('userID');
+    GLOBAL $user;
+  $roles_array = $user->roles;
+  if(array_key_exists(6,$roles_array)){
+    $transaction = new CRM_Core_Transaction();
+    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $assigneeID = CRM_Utils_Array::key('Activity Assignees', $activityContacts);
+    $sql   = " DELETE FROM civicrm_activity_contact WHERE  activity_id = %1 AND contact_id = %2 AND record_type_id = %3 ";
+    $params= array(1 => array($activityID, 'Integer'),
+                   2 => array($currentUser, 'Integer'),
+                   3 => array($assigneeID , 'Integer'));
+    $result=CRM_Core_DAO::executeQuery($sql,$params);
+     if (is_a($result, 'CRM_Core_Error')) {
+        $transaction->rollback();
+        return $result;
+      }
+    /**
+     *  As per the meeting dated Mar-07-2018 When the enagement released 
+     *  status should be changed again back to Requested 
+     *  Modified by Mritunjay Kumar dated Mar-10-2018 
+     *
+     ***/
+    $sql=" UPDATE civicrm_activity set status_id= %1 where id=%2 ";
+    $params= array(1 => array(9, 'Integer'),
+                   2 => array($activityID, 'Integer'));
+    $result=CRM_Core_DAO::executeQuery($sql,$params);
+     if (is_a($result, 'CRM_Core_Error')) {
+        $transaction->rollback();
+        return $result;
+      }
+    /*CRM_Core_Session::setStatus(ts('Activity %1 has been saved. %2 %3',
+      array(
+      1 => $subject,
+      2 => $followupStatus,
+      3 => $mailStatus
+      )
+    ), ts('Saved'), 'success');*/
+   $transaction->commit();
+   $mailToContacts = array();
+   $toExtra=array();
+   $mailCCContacts = array();
+   $TargetsContacts = viewAltergetContactNames($activityID, 'Activity Targets');
+   $assigneeContacts = viewAltergetContactNames($activityID, 'Activity Assignees');
+    //build an associative array with unique email addresses.
+    foreach ($TargetsContacts as $id => $dnc) {
+    if (isset($id) && array_key_exists($id, $TargetsContacts)) {
+      $toExtra[$TargetsContacts[$id]['email']] = $TargetsContacts[$id];
+      /*
+       *  Get Admin ID to mail
+       */
+       $stateAdmin=array();
+       //$stateAdmin +=viewAltergetAdminID($id,4);
+       $stateAdmin +=viewAltergetAdminID($id,8);
+       $stateAdmin +=viewAltergetAdminID($id,9);
+      if(!empty($stateAdmin)){
+      foreach($stateAdmin as $cid){
+        $contactInfo=  ViewAlterGetContactInfo($cid);
+        $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+        }
+      }
+      
+      /*
+       * End Email
+       */
+    }
+    }
+    $assigneeContacts=array($currentUser=>$currentUser);
+    foreach ($assigneeContacts as $cid => $dnc) {
+    if (isset($cid) && array_key_exists($cid, $assigneeContacts)) {
+      $contactInfo=  ViewAlterGetContactInfo($cid);
+      $mailToContacts[$contactInfo[$cid]['email']] = $contactInfo[$cid];
+    }
+    }
+    if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+    }
+    if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+      $mailCCContacts=NULL;
+    }
+    
+    if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+    // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+     viewAlterSendEmail($activityID, $mailToContacts, null, 77,$mailCCContacts,$toExtra);
+
+    }
+   /*
+    *  Email Send Call here yet to code
+    */
+    drupal_set_message(ts('Volunteer has been released'));
+  CRM_Utils_System::redirect(CRM_Utils_System::url('vol_current'));
+   }
+}
+
+function view_alter_civicrm_validateForm( $formName, &$fields, &$files, &$form, &$errors ){
+ //$session = CRM_Core_Session::singleton();
+ //$session->pushUserContext(CRM_Utils_System::url('manage'));
+}
+
+function view_alter_views_pre_render(&$view){
+  
+  
+}
+
+function volunteer_activiate($contact_id){
+  
+  if (!civicrm_initialize()) {
+        return FALSE;
+      }
+    if(CRM_Utils_Type::escape($contact_id, 'Integer', FALSE) === NULL){
+    return false;
+  }
+  /*require_once 'CRM/Core/BAO/UFMatch.php';
+  $ufid=CRM_Core_BAO_UFMatch::getUFId($contact_id);
+  if(CRM_Utils_Type::escape($ufid, 'Integer', FALSE) === NULL){
+    drupal_set_message(ts('This volunteer is not a user.'));
+    CRM_Utils_System::redirect(CRM_Utils_System::url('activate'));
+  }
+  /*
+   *  Update Contact Role
+   */
+  /*$updateContactuser = module_invoke('user', 'load', $ufid); 
+  $Cuserroles = $updateContactuser->roles;
+  if(isset($Cuserroles[7])){
+    unset($Cuserroles[7]);
+  } 
+  $Cuserroles[6]  = 'Volunteer - Classroom'; 
+  module_invoke('user', 'save', $updateContactuser, array('roles' => $Cuserroles)); */
+  
+  /*
+   *  Add/Remove Group
+   */
+    $contactIds=array($contact_id);
+    CRM_Contact_BAO_GroupContact::addContactsToGroup($contactIds, 4);// add to Volunteer Classroom
+    CRM_Contact_BAO_GroupContact::removeContactsFromGroup($contactIds, 5);
+    $mailToContacts = array();
+    $mailCCContacts = array();
+    $contactInfo =  ViewAlterGetContactInfo($contact_id);
+    $mailToContacts[$contactInfo[$contact_id]['email']]=$contactInfo[$contact_id];
+    $stateAdmin=array();
+    //$stateAdmin =viewAltergetAdminID($contact_id,4);
+    $stateAdmin += viewAltergetAdminID($contact_id,8);
+    $stateAdmin += viewAltergetAdminID($contact_id,9);
+    if(!empty($stateAdmin)){
+     foreach($stateAdmin as $cid){
+        $contactInfo =  ViewAlterGetContactInfo($cid);
+        $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+        }
+    }
+    if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+    // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+     viewAlterSendEmail(NULL, $mailToContacts, null, 66,$mailCCContacts);
+    }
+    drupal_set_message(ts('Volunteer has been activated sucessfully'));
+    CRM_Utils_System::redirect(CRM_Utils_System::url('activate'));
+}
+
+
+function volunteer_decline($contact_id){
+  
+  if (!civicrm_initialize()) {
+        return FALSE;
+      }
+    if(CRM_Utils_Type::escape($contact_id, 'Integer', FALSE) === NULL){
+    return false;
+  }
+  
+   $contactIds=array($contact_id);
+    CRM_Contact_BAO_GroupContact::addContactsToGroup($contactIds, 11);// add to Volunteer to other
+    CRM_Contact_BAO_GroupContact::removeContactsFromGroup($contactIds, 5);
+    $mailToContacts = array();
+    $toExtra=array();
+    $stateAdmin=array();
+    $mailCCContacts = array();
+    $contactInfo =  ViewAlterGetContactInfo($contact_id);
+    $mailToContacts[$contactInfo[$contact_id]['email']]=$contactInfo[$contact_id];
+    //$stateAdmin =viewAltergetAdminID($contact_id,4);
+    $stateAdmin += viewAltergetAdminID($contact_id,8);
+    $stateAdmin += viewAltergetAdminID($contact_id,9);
+    if(!empty($stateAdmin)){
+      foreach($stateAdmin as $cid){
+      $contactInfo =  ViewAlterGetContactInfo($cid);
+      $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+      }
+    }
+    if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+    }
+    if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+      $mailCCContacts=NULL;
+    }
+    if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+  // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+      viewAlterSendEmail(NULL, $mailToContacts, null, 73,$mailCCContacts,$toExtra);
+    }
+    drupal_set_message(ts('Volunteer has been declined sucessfully'));
+    CRM_Utils_System::redirect(CRM_Utils_System::url('activate'));
+  
+}
+
+
+function view_alter_civicrm_post( $op, $objectName, $objectId, &$objectRef ){
+  if($objectName=='Activity' 
+     && ($op=='create'||$op=='edit') 
+     && $objectRef->activity_type_id==53){
+     // send Email
+     /****
+         * Request a New Volunteer Request By Educator 
+         * Message Template ID 68
+         *  Send To Educator & Admin
+         * 
+         ********/
+     if($op=='create'){
+          $mailToContacts = array();
+          $toExtra=array();
+        $mailCCContacts = array();
+        $TargetsContacts = viewAltergetContactNames($objectId, 'Activity Targets');
+        //build an associative array with unique email addresses.
+        foreach ($TargetsContacts as $id => $dnc) {
+        if (isset($id) && array_key_exists($id, $TargetsContacts)) {
+          $mailToContacts[$TargetsContacts[$id]['email']] = $TargetsContacts[$id];
+          /*
+           *  Get Admin ID to mail
+           */
+           $stateAdmin=array();
+           //$stateAdmin =viewAltergetAdminID($id,4);
+           $stateAdmin += viewAltergetAdminID($id,8);
+           $stateAdmin += viewAltergetAdminID($id,9);
+          if(!empty($stateAdmin)){
+          foreach($stateAdmin as $cid){
+            $contactInfo =  ViewAlterGetContactInfo($cid);
+            $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+                }
+          }
+          
+          /*
+           * End Email
+           */
+        }
+        }
+        if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+        }
+        if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+          $mailCCContacts=NULL;
+        }
+              
+        if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+        // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+         viewAlterSendEmail($objectId, $mailToContacts, null, 68,$mailCCContacts,$toExtra);
+
+         }
+       }
+    }
+}
+
+function view_alter_civicrm_pre($op, $objectName, $id, &$params){
+  if($objectName=='Activity' 
+     && ($op=='edit')
+     && $params['activity_type_id']==53){ 
+          $objectId =CRM_Utils_Array::value('id', $params);
+          $prestatus_id=CRM_Core_DAO::getFieldValue('CRM_Activity_DAO_Activity',$objectId,'status_id','id');
+          $postStatus_id=CRM_Utils_Array::value('status_id', $params);
+          if(!$postStatus_id){
+			  $postStatus_id=$prestatus_id;
+		  }
+          $activityStatus= CRM_Core_PseudoConstant::activityStatus();
+          GLOBAL $user;
+          $roles_array = $user->roles;
+      if(array_key_exists(4,$roles_array)
+         ||array_key_exists(8,$roles_array)
+          ||array_key_exists(3,$roles_array)
+             ||array_key_exists(9,$roles_array)){
+			/**
+			  *  Admin Approved The Volunteer request Fire Mail template ID 69
+			  * 
+			  * **/  
+				 
+          if(CRM_Utils_Array::value($postStatus_id,$activityStatus)=='Approved'
+                 && CRM_Utils_Array::value($prestatus_id,$activityStatus)=='Requested'){
+              
+            // Send Mail 69  
+            
+             $mailToContacts = array();
+             $toExtra=array();
+             $mailCCContacts = array();
+             $targetContacts = viewAltergetContactNames($objectId, 'Activity Targets');
+             $assigneeContacts = viewAltergetContactNames($objectId, 'Activity Assignees');
+              //build an associative array with unique email addresses.
+              foreach ($targetContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $targetContacts)) {
+                $mailToContacts[$targetContacts[$fcid]['email']] = $targetContacts[$fcid];
+                /*
+                 *  Get Admin ID to mail
+                 */
+                 $stateAdmin=array();
+                 //$stateAdmin  =viewAltergetAdminID($fcid,4);
+                  $stateAdmin +=viewAltergetAdminID($fcid,8);
+                  $stateAdmin +=viewAltergetAdminID($fcid,9);
+                if(!empty($stateAdmin)){
+                foreach($stateAdmin as $cid){
+                  $contactInfo=  ViewAlterGetContactInfo($cid);
+                  $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+                  }
+                }
+                
+                /*
+                 * End Email
+                 */
+              }
+              }
+              foreach ($assigneeContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $assigneeContacts)) {
+                $toExtra[$assigneeContacts[$fcid]['email']] = $assigneeContacts[$fcid];
+                 }
+                }
+              if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+              }
+              if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+                $mailCCContacts=NULL;
+              }
+              if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+              // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+               viewAlterSendEmail($objectId, $mailToContacts, null, 69,$mailCCContacts,$toExtra);
+
+               }
+            
+        }elseif(CRM_Utils_Array::value($postStatus_id,$activityStatus)=='Matched'
+                  && CRM_Utils_Array::value($prestatus_id,$activityStatus)=='Approved'){
+          
+             /***
+                *
+                *    Admin Matched Approved Volunteer Request Fired Mail template ID 79
+                * 
+                * ***/ 
+             
+             $mailToContacts = array();
+             $toExtra=array();
+             $mailCCContacts = array();
+             $TargetsContacts = viewAltergetContactNames($objectId, 'Activity Targets');
+             $assigneeContacts = viewAltergetContactNames($objectId, 'Activity Assignees');
+             if (CRM_Utils_array::crmIsEmptyArray($assigneeContacts)) {
+				 $assigneeContactsTemp=CRM_Utils_Array::value('assignee_contact_id',$params);
+				 foreach($assigneeContactsTemp as $acid ){
+					 $assicDetail=ViewAlterGetContactInfo($acid);
+					 $assigneeContacts[$acid]=$assicDetail[$acid];
+				 }
+				 
+			 }
+              //build an associative array with unique email addresses.
+            foreach ($assigneeContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $assigneeContacts)) {
+                $mailToContacts[$assigneeContacts[$fcid]['email']] = $assigneeContacts[$fcid];
+              }
+              }
+             foreach ($TargetsContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $TargetsContacts)) {
+                $toExtra[$TargetsContacts[$fcid]['email']] = $TargetsContacts[$fcid];
+                /*
+                 *  Get Admin ID to mail 
+                 */
+                 $stateAdmin=array();
+                 //$stateAdmin  =viewAltergetAdminID($fcid,4);
+                 $stateAdmin +=viewAltergetAdminID($fcid,8);
+                 $stateAdmin +=viewAltergetAdminID($fcid,9);
+                if(!empty($stateAdmin)){
+                foreach($stateAdmin as $cid){
+                  $contactInfo=  ViewAlterGetContactInfo($cid);
+                  $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+                  }
+                }
+                
+                /*
+                 * End Email
+                 */
+                 }
+                }
+              if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+              }
+              if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+                $mailCCContacts=NULL;
+              }
+              
+              if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+              // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+               viewAlterSendEmail($objectId, $mailToContacts, null, 79,$mailCCContacts,$toExtra);
+
+               }
+           
+        }elseif((CRM_Utils_Array::value($postStatus_id,$activityStatus)=='Scheduled'
+                && CRM_Utils_Array::value($prestatus_id,$activityStatus)=='Matched')){
+			
+			/*****
+			     * Admin Scheduled -Matched Volunteer Request Fire Mail Template ID 74
+			     * 
+			     * 
+			     ******/ 
+			
+			 $mailToContacts = array();
+             $toExtra=array();
+             $mailCCContacts = array();
+             $TargetsContacts = viewAltergetContactNames($objectId, 'Activity Targets');
+             $assigneeContacts = viewAltergetContactNames($objectId, 'Activity Assignees');
+              //build an associative array with unique email addresses.
+            foreach ($assigneeContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $assigneeContacts)) {
+                $mailToContacts[$assigneeContacts[$fcid]['email']] = $assigneeContacts[$fcid];
+              }
+              }
+             foreach ($TargetsContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $TargetsContacts)) {
+                $toExtra[$TargetsContacts[$fcid]['email']] = $TargetsContacts[$fcid];
+                /*
+                 *  Get Admin ID to mail 
+                 */
+                 $stateAdmin=array();
+                 //$stateAdmin  =viewAltergetAdminID($fcid,4);
+                 $stateAdmin +=viewAltergetAdminID($fcid,8);
+                 $stateAdmin +=viewAltergetAdminID($fcid,9);
+                if(!empty($stateAdmin)){
+                foreach($stateAdmin as $cid){
+                  $contactInfo=  ViewAlterGetContactInfo($cid);
+                  $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+                  }
+                }
+                
+                /*
+                 * End Email
+                 */
+                 }
+                }
+              if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+              }
+              if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+                $mailCCContacts=NULL;
+              }
+              
+              if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+              // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+               viewAlterSendEmail($objectId, $mailToContacts, null, 74,$mailCCContacts,$toExtra);
+
+               }
+
+			}elseif(CRM_Utils_Array::value($postStatus_id,$activityStatus) !='Cancelled'
+                  || CRM_Utils_Array::value($postStatus_id,$activityStatus)!='Completed'
+                  || CRM_Utils_Array::value($postStatus_id,$activityStatus)!='No-show'
+                  ){
+              /****
+                  *
+                  *  Else Admin Modified Any Field Fired mail Template ID 78
+                  * 
+                  * *****/ 
+             $mailToContacts = array();
+             $toExtra=array();
+             $mailCCContacts = array();
+             $TargetsContacts = viewAltergetContactNames($objectId, 'Activity Targets');
+             $assigneeContacts = viewAltergetContactNames($objectId, 'Activity Assignees');
+              //build an associative array with unique email addresses.
+              foreach ($TargetsContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $TargetsContacts)) {
+                $mailToContacts[$TargetsContacts[$fcid]['email']] = $TargetsContacts[$fcid];
+                /*
+                 *  Get Admin ID to mail
+                 */
+                 $stateAdmin=array();
+                 //$stateAdmin  =viewAltergetAdminID($fcid,4);
+                 $stateAdmin +=viewAltergetAdminID($fcid,8);
+                 $stateAdmin +=viewAltergetAdminID($fcid,9);
+                if(!empty($stateAdmin)){
+                foreach($stateAdmin as $cid){
+                  $contactInfo=  ViewAlterGetContactInfo($cid);
+                  $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+                  }
+                }
+                
+                /*
+                 * End Email
+                 */
+              }
+              }
+              foreach ($assigneeContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $assigneeContacts)) {
+                $toExtra[$assigneeContacts[$fcid]['email']] = $assigneeContacts[$fcid];
+                 }
+                }
+              if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+              }
+              if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+                $mailCCContacts=NULL;
+              }
+              
+              if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+              // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+               viewAlterSendEmail($objectId, $mailToContacts, null, 78, $mailCCContacts,$toExtra);
+
+               }
+          
+        }  
+      }
+      if(array_key_exists(5,$roles_array)
+         ||array_key_exists(6,$roles_array)
+         ){
+             if(CRM_Utils_Array::value($postStatus_id,$activityStatus)=='Scheduled'
+                && CRM_Utils_Array::value($prestatus_id,$activityStatus)=='Matched'){
+          
+             /******
+                   *  When Educator/Volunteer Schedule Volunteer Request Mail Template ID 74 fired
+                   * 
+                   * *************/ 
+             
+             $mailToContacts = array();
+             $toExtra=array();
+             $mailCCContacts = array();
+             $TargetsContacts = viewAltergetContactNames($objectId, 'Activity Targets');
+             $assigneeContacts = viewAltergetContactNames($objectId, 'Activity Assignees');
+              //build an associative array with unique email addresses.
+            foreach ($assigneeContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $assigneeContacts)) {
+                $mailToContacts[$assigneeContacts[$fcid]['email']] = $assigneeContacts[$fcid];
+              }
+              }
+             foreach ($TargetsContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $TargetsContacts)) {
+                $toExtra[$TargetsContacts[$fcid]['email']] = $TargetsContacts[$fcid];
+                /*
+                 *  Get Admin ID to mail
+                 */
+                 $stateAdmin=array();
+                 //$stateAdmin  =viewAltergetAdminID($fcid,4);
+                 $stateAdmin +=viewAltergetAdminID($fcid,8);
+                 $stateAdmin +=viewAltergetAdminID($fcid,9);
+                if(!empty($stateAdmin)){
+                foreach($stateAdmin as $cid){
+                  $contactInfo=  ViewAlterGetContactInfo($cid);
+                  $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+                  }
+                }
+                
+                /*
+                 * End Email
+                 */
+                 }
+                }
+              if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+              }
+              if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+                $mailCCContacts=NULL;
+              }
+              
+              if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+              // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+               viewAlterSendEmail($objectId, $mailToContacts, null, 74,$mailCCContacts,$toExtra);
+
+              }
+           
+           }elseif(CRM_Utils_Array::value($postStatus_id,$activityStatus) =='Cancelled'
+                  || CRM_Utils_Array::value($postStatus_id,$activityStatus) =='Completed'
+                  || CRM_Utils_Array::value($postStatus_id,$activityStatus) =='No-show'){
+					  /****
+					      *
+					      * Volunteer & Educator close a request Mail Template ID 75 Fired
+					      * 
+					      * ****/ 
+			 $mailToContacts = array();
+             $toExtra=array();
+             $mailCCContacts = array();
+             $TargetsContacts = viewAltergetContactNames($objectId, 'Activity Targets');
+             $assigneeContacts = viewAltergetContactNames($objectId, 'Activity Assignees');
+              //build an associative array with unique email addresses.
+            foreach ($assigneeContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $assigneeContacts)) {
+                $mailToContacts[$assigneeContacts[$fcid]['email']] = $assigneeContacts[$fcid];
+              }
+              }
+             foreach ($TargetsContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $TargetsContacts)) {
+                $toExtra[$TargetsContacts[$fcid]['email']] = $TargetsContacts[$fcid];
+                /*
+                 *  Get Admin ID to mail
+                 */
+                 $stateAdmin=array();
+                 //$stateAdmin  =viewAltergetAdminID($fcid,4);
+                 $stateAdmin +=viewAltergetAdminID($fcid,8);
+                 $stateAdmin +=viewAltergetAdminID($fcid,9);
+                if(!empty($stateAdmin)){
+                foreach($stateAdmin as $cid){
+                  $contactInfo=  ViewAlterGetContactInfo($cid);
+                  $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+                  }
+                }
+                
+                /*
+                 * End Email
+                 */
+                 }
+                }
+              if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+              }
+              if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+                $mailCCContacts=NULL;
+              }
+              
+              if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+              // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+               viewAlterSendEmail($objectId, $mailToContacts, null, 75,$mailCCContacts,$toExtra);
+
+              }
+		   }elseif(CRM_Utils_Array::value($postStatus_id,$activityStatus) !='Cancelled'
+                  || CRM_Utils_Array::value($postStatus_id,$activityStatus) !='Completed'
+                  || CRM_Utils_Array::value($postStatus_id,$activityStatus) !='No-show'){
+			   /****
+			       *
+			       *  any changes made by educator & Volunteer Mail Template 70 Fired
+			       * 
+			       * ****/ 
+			 $mailToContacts = array();
+             $toExtra=array();
+             $mailCCContacts = array();
+             $TargetsContacts = viewAltergetContactNames($objectId, 'Activity Targets');
+             $assigneeContacts = viewAltergetContactNames($objectId, 'Activity Assignees');
+              //build an associative array with unique email addresses.
+            foreach ($assigneeContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $assigneeContacts)) {
+                $mailCCContacts[$assigneeContacts[$fcid]['email']] = $assigneeContacts[$fcid];
+              }
+              }
+             foreach ($TargetsContacts as $fcid => $dnc) {
+              if (isset($fcid) && array_key_exists($fcid, $TargetsContacts)) {
+                $mailToContacts[$TargetsContacts[$fcid]['email']] = $TargetsContacts[$fcid];
+                /*
+                 *  Get Admin ID to mail
+                 */
+                 $stateAdmin=array();
+                 //$stateAdmin  =viewAltergetAdminID($fcid,4);
+                 $stateAdmin +=viewAltergetAdminID($fcid,8);
+                 $stateAdmin +=viewAltergetAdminID($fcid,9);
+                if(!empty($stateAdmin)){
+                foreach($stateAdmin as $cid){
+                  $contactInfo=  ViewAlterGetContactInfo($cid);
+                  $mailCCContacts[$contactInfo[$cid]['email']]=$contactInfo[$cid];
+                  }
+                }
+                
+                /*
+                 * End Email
+                 */
+                 }
+                }
+              if (CRM_Utils_array::crmIsEmptyArray($toExtra)) {
+                $toExtra=NULL;
+              }
+              if (CRM_Utils_array::crmIsEmptyArray($mailCCContacts)) {
+                $mailCCContacts=NULL;
+              }
+              
+              if (!CRM_Utils_array::crmIsEmptyArray($mailToContacts)) {
+              // CRM-8400 add param with _currentlyViewedContactId for URL link in mail
+               viewAlterSendEmail($objectId, $mailToContacts, null, 70,$mailCCContacts,$toExtra);
+
+              }
+		   }
+      
+        }
+     }
+   }
+
+
+function viewAlterSendEmail($activityId,$contacts,$attachments = NULL,$messageTemplateID,$mailCC=NULL,$toExtra=NULL){
+  if (!civicrm_initialize()) {
+        return FALSE;
+      }
+   $tplParams = $activityInfo = array();
+   $anyActivity = TRUE;
+   if ($activityId) {
+    
+
+    $xmlProcessorProcess = new CRM_Case_XMLProcessor_Process();
+    $isRedact = $xmlProcessorProcess->getRedactActivityEmail();
+
+    $xmlProcessorReport = new CRM_Case_XMLProcessor_Report();
+
+    $activityInfo = $xmlProcessorReport->getActivityInfo(null, $activityId, $anyActivity, $isRedact);
+    $tplParams['activity'] = $activityInfo;
+    foreach ($tplParams['activity']['fields'] as $k => $val) {
+      if (CRM_Utils_Array::value('label', $val) == ts('Subject')) {
+        $activitySubject = $val['value'];
+        break;
+      }
+     }
+    }
+    $session = CRM_Core_Session::singleton();
+    $userID = $session->get('userID');
+    // CRM-8926 If user is not logged in, use the activity creator as userID
+    if (!($userID) && $activityId) {
+    
+      $userID = CRM_Activity_BAO_Activity::getSourceContactID($activityId);
+    }
+    if(!is_null($mailCC)){
+    if (!CRM_Utils_array::crmIsEmptyArray($mailCC)) {
+          $tempcc=array();
+        foreach($mailCC as $cmail=>$cinfo){
+          $tempcc[]=CRM_Utils_Mail::formatRFC822Email(
+                            CRM_Utils_Array::value('display_name', $cinfo),
+                            $cmail,
+                            FALSE
+                            );
+        }
+        $mailCC=implode(',',$tempcc);
+    }else{
+      $mailCC=NULL;
+    }
+    }
+    //also create activities simultaneously of this copy.
+    $activityParams = array();
+
+    $activityParams['source_record_id'] = $activityId;
+    $activityParams['source_contact_id'] = $userID;
+    $activityParams['activity_type_id'] = CRM_Core_OptionGroup::getValue('activity_type', 'Email', 'name');
+    $activityParams['activity_date_time'] = date('YmdHis');
+    $activityParams['status_id'] = CRM_Core_OptionGroup::getValue('activity_status', 'Completed', 'name');
+    $activityParams['medium_id'] = CRM_Core_OptionGroup::getValue('encounter_medium', 'email', 'name');
+    $activityParams['case_id'] = null;
+    $activityParams['is_auto'] = 0;
+    $activityParams['target_id'] = null;
+    if($activityId){
+    $tplParams['activitySubject'] = $activitySubject;
+    $tplParams['activityId'] =$activityId;
+    }
+    $result = array();
+    list($name, $address) = CRM_Core_BAO_Domain::getNameAndEmail();
+    //list($name, $address) = CRM_Contact_BAO_Contact_Location::getEmailDetails($userID);
+
+    $receiptFrom = "$name <$address>";
+
+    $recordedActivityParams = array();
+    foreach ($contacts as $mail => $info) {
+      $tplParams['contact'] = $info;
+      if ($activityId) {
+      CRM_Case_BAO_Case::buildPermissionLinks($tplParams, $activityParams);
+      }
+      $displayName = CRM_Utils_Array::value('display_name', $info);
+
+      list($result[CRM_Utils_Array::value('contact_id', $info)], $subject, $message, $html) = viewAltersendTemplate(
+        array(
+          'messageTemplateID' => $messageTemplateID,
+          'contactId' => CRM_Utils_Array::value('contact_id', $info),
+          'tplParams' => $tplParams,
+          'from' => $receiptFrom,
+          'toName' => $displayName,
+          'toEmail' => $mail,
+          'toExtra'=>$toExtra,
+          'cc'=>$mailCC,
+          'attachments' => $attachments,
+        )
+      );
+
+      $activityParams['subject'] = $subject;
+      $activityParams['details'] = !empty($message)?$message:$html;
+
+      if (!empty($result[$info['contact_id']])) {
+        /*
+         * Really only need to record one activity with all the targets combined.
+         * Originally the template was going to possibly have different content, e.g. depending on permissions,
+         * but it's always the same content at the moment.
+         */
+        if (empty($recordedActivityParams)) {
+          $recordedActivityParams = $activityParams;
+        }
+        $recordedActivityParams['target_contact_id'][] = $info['contact_id'];
+      }
+      else {
+        unset($result[CRM_Utils_Array::value('contact_id', $info)]);
+      }
+    }
+
+    if (!empty($recordedActivityParams)) {
+      $activity = CRM_Activity_BAO_Activity::create($recordedActivityParams);
+    }
+
+    return $result;
+  
+}
+
+    //$sourceID = CRM_Utils_Array::key('Activity Source', $activityContacts);
+    //$assigneeID = CRM_Utils_Array::key('Activity Assignees', $activityContacts);
+    //$targetID = CRM_Utils_Array::key('Activity Targets', $activityContacts);
+function viewAltergetContactNames($activityID,$key='Activity Assignees') {
+  if (!civicrm_initialize()) {
+        return FALSE;
+      }
+    $assigneeNames = array();
+    if (empty($activityID)) {
+      return $assigneeNames;
+    }
+    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $assigneeID = CRM_Utils_Array::key($key, $activityContacts);
+    
+    $whereClause = "  AND ce.is_primary= 1";
+
+    $query = "
+SELECT     contact_a.id, contact_a.sort_name, contact_a.display_name, ce.email
+FROM       civicrm_contact contact_a
+INNER JOIN civicrm_activity_contact ON civicrm_activity_contact.contact_id = contact_a.id
+LEFT JOIN  civicrm_email ce ON ce.contact_id = contact_a.id
+WHERE      civicrm_activity_contact.activity_id = %1
+AND        contact_a.is_deleted = 0
+AND        civicrm_activity_contact.record_type_id = $assigneeID
+           {$whereClause}
+";
+
+    $queryParam = array(1 => array($activityID, 'Integer'));
+    $dao = CRM_Core_DAO::executeQuery($query, $queryParam);
+    while ($dao->fetch()) {
+          $assigneeNames[$dao->id]['contact_id'] = $dao->id;
+          $assigneeNames[$dao->id]['display_name'] = $dao->display_name;
+          $assigneeNames[$dao->id]['sort_name'] = $dao->sort_name;
+          $assigneeNames[$dao->id]['email'] = $dao->email;
+          $assigneeNames[$dao->id]['role'] = ts('Activity Assignee');
+        }
+    return $assigneeNames;
+  }
+
+
+function ViewAlterGetContactInfo($conatctID) {
+  if (!civicrm_initialize()) {
+        return FALSE;
+      }
+    $assigneeNames = array();
+    if (empty($conatctID)) {
+      return $assigneeNames;
+    }
+    
+    $whereClause = "  AND ce.is_primary= 1";
+
+    $query = "
+SELECT     contact_a.id, contact_a.sort_name, contact_a.display_name, ce.email
+FROM       civicrm_contact contact_a
+LEFT JOIN  civicrm_email ce ON ce.contact_id = contact_a.id
+WHERE      contact_a.id = %1
+AND        contact_a.is_deleted = 0
+           {$whereClause}
+";
+
+    $queryParam = array(1 => array($conatctID, 'Integer'));
+    $dao = CRM_Core_DAO::executeQuery($query, $queryParam);
+    while ($dao->fetch()) {
+          $assigneeNames[$dao->id]['contact_id'] = $dao->id;
+          $assigneeNames[$dao->id]['display_name'] = $dao->display_name;
+          $assigneeNames[$dao->id]['sort_name'] = $dao->sort_name;
+          $assigneeNames[$dao->id]['email'] = $dao->email;
+          $assigneeNames[$dao->id]['role'] = ts('Activity Assignee');
+        }
+    return $assigneeNames;
+  }
+  
+  
+function viewAltergetAdminID($contactID,$permission){
+  if (!civicrm_initialize()) {
+        return FALSE;
+      }
+    $targetNames=array();
+  global $databases;
+    $drupaldbName = $databases['default']['default']['database'].'.';
+    $whereClause=" WHERE 1=1 ";
+    $params=array();
+    if($permission!==NULL){
+        $whereClause .=" AND ur.rid = %1 ";
+        $params[1]=array($permission, 'Integer');
+    }
+  $sql="SELECT cum.contact_id FROM {$drupaldbName}users_roles AS ur
+        JOIN {$drupaldbName}users on(users.uid=ur.uid AND users.status=1)
+      JOIN civicrm_uf_match cum on(ur.uid=cum.uf_id) ";    
+    if(in_array($permission,array(4,8,9))){
+    $sql .= " JOIN civicrm_value_dashboard_access_2 cvda on(cum.contact_id=cvda.entity_id) ";
+    $whereClause .=" AND INSTR(cvda.state_administration_15, (SELECT state_province_id 
+     FROM civicrm_address WHERE contact_id = %2 AND location_type_id=2 AND is_primary= 1  ))>0 ";
+     $params[2]= array($contactID, 'Integer');
+  }
+  
+  $dao=CRM_Core_DAO::executeQuery($sql.$whereClause,$params);
+  while ($dao->fetch()) {
+      $targetNames[$dao->contact_id] = $dao->contact_id;
+    }
+  return $targetNames;
+}
+
+
+/*
+ *  Message Template send
+ */
+
+function viewAltersendTemplate($params) {
+  if (!civicrm_initialize()) {
+        return FALSE;
+      }
+    $defaults = array(
+      // option group name of the template
+      'groupName' => NULL,
+      // option value name of the template
+      'valueName' => NULL,
+      // ID of the template
+      'messageTemplateID' => NULL,
+      // contact id if contact tokens are to be replaced
+      'contactId' => NULL,
+      // additional template params (other than the ones already set in the template singleton)
+      'tplParams' => array(),
+      // the From: header
+      'from' => NULL,
+      // the recipient’s name
+      'toName' => NULL,
+      // the recipient’s email - mail is sent only if set
+      'toEmail' => NULL,
+      
+      'toExtra'=>NULL,
+      // the Cc: header
+      'cc' => NULL,
+      // the Bcc: header
+      'bcc' => NULL,
+      // the Reply-To: header
+      'replyTo' => NULL,
+      // email attachments
+      'attachments' => NULL,
+      // whether this is a test email (and hence should include the test banner)
+      'isTest' => FALSE,
+      // filename of optional PDF version to add as attachment (do not include path)
+      'PDFFilename' => NULL,
+    );
+    $params = array_merge($defaults, $params);
+
+    if ((!$params['groupName'] ||
+        !$params['valueName']
+      ) &&
+      !$params['messageTemplateID']
+    ) {
+      CRM_Core_Error::fatal(ts("Message template's option group and/or option value or ID missing."));
+    }
+
+    if ($params['messageTemplateID']) {
+      // fetch the three elements from the db based on id
+      $query = 'SELECT msg_subject subject, msg_text text, msg_html html, pdf_format_id format
+                      FROM civicrm_msg_template mt
+                      WHERE mt.id = %1 AND mt.is_default = 1';
+      $sqlParams = array(1 => array($params['messageTemplateID'], 'String'));
+    }
+    else {
+      // fetch the three elements from the db based on option_group and option_value names
+      $query = 'SELECT msg_subject subject, msg_text text, msg_html html, pdf_format_id format
+                      FROM civicrm_msg_template mt
+                      JOIN civicrm_option_value ov ON workflow_id = ov.id
+                      JOIN civicrm_option_group og ON ov.option_group_id = og.id
+                      WHERE og.name = %1 AND ov.name = %2 AND mt.is_default = 1';
+      $sqlParams = array(1 => array($params['groupName'], 'String'), 2 => array($params['valueName'], 'String'));
+    }
+    $dao = CRM_Core_DAO::executeQuery($query, $sqlParams);
+    $dao->fetch();
+
+    if (!$dao->N) {
+      if ($params['messageTemplateID']) {
+        CRM_Core_Error::fatal(ts('No such message template: id=%1.', array(1 => $params['messageTemplateID'])));
+      }
+      else {
+        CRM_Core_Error::fatal(ts('No such message template: option group %1, option value %2.', array(1 => $params['groupName'], 2 => $params['valueName'])));
+      }
+    }
+
+    $subject = $dao->subject;
+    $text    = $dao->text;
+    $html    = $dao->html;
+    $format  = $dao->format;
+    $dao->free();
+
+    // add the test banner (if requested)
+    if ($params['isTest']) {
+      $query = "SELECT msg_subject subject, msg_text text, msg_html html
+                      FROM civicrm_msg_template mt
+                      JOIN civicrm_option_value ov ON workflow_id = ov.id
+                      JOIN civicrm_option_group og ON ov.option_group_id = og.id
+                      WHERE og.name = 'msg_tpl_workflow_meta' AND ov.name = 'test_preview' AND mt.is_default = 1";
+      $testDao = CRM_Core_DAO::executeQuery($query);
+      $testDao->fetch();
+
+      $subject = $testDao->subject . $subject;
+      $text    = $testDao->text . $text;
+      $html    = preg_replace('/<body(.*)$/im', "<body\\1\n{$testDao->html}", $html);
+      $testDao->free();
+    }
+
+    // replace tokens in the three elements (in subject as if it was the text body)
+    $domain             = CRM_Core_BAO_Domain::getDomain();
+    $hookTokens         = array();
+    $mailing            = new CRM_Mailing_BAO_Mailing;
+    $mailing->body_text = $text;
+    $mailing->body_html = $html;
+    $tokens             = $mailing->getTokens();
+    CRM_Utils_Hook::tokens($hookTokens);
+    $categories = array_keys($hookTokens);
+
+    $contactID = CRM_Utils_Array::value('contactId', $params);
+
+    if ($contactID) {
+      $contactParams = array('contact_id' => $contactID);
+      $returnProperties = array();
+
+      if (isset($tokens['text']['contact'])) {
+        foreach ($tokens['text']['contact'] as $name) {
+          $returnProperties[$name] = 1;
+        }
+      }
+
+      if (isset($tokens['html']['contact'])) {
+        foreach ($tokens['html']['contact'] as $name) {
+          $returnProperties[$name] = 1;
+        }
+      }
+      list($contact) = CRM_Utils_Token::getTokenDetails($contactParams,
+        $returnProperties,
+        FALSE, FALSE, NULL,
+        CRM_Utils_Token::flattenTokens($tokens),
+        // we should consider adding groupName and valueName here
+        'CRM_Core_BAO_MessageTemplate'
+      );
+      $contact = $contact[$contactID];
+    }
+
+    $subject = CRM_Utils_Token::replaceDomainTokens($subject, $domain, TRUE, $tokens['text'], TRUE);
+    $text    = CRM_Utils_Token::replaceDomainTokens($text, $domain, TRUE, $tokens['text'], TRUE);
+    $html    = CRM_Utils_Token::replaceDomainTokens($html, $domain, TRUE, $tokens['html'], TRUE);
+
+    if ($contactID) {
+      $subject = CRM_Utils_Token::replaceContactTokens($subject, $contact, FALSE, $tokens['text'], FALSE, TRUE);
+      $text    = CRM_Utils_Token::replaceContactTokens($text, $contact, FALSE, $tokens['text'], FALSE, TRUE);
+      $html    = CRM_Utils_Token::replaceContactTokens($html, $contact, FALSE, $tokens['html'], FALSE, TRUE);
+
+
+      $contactArray = array($contactID => $contact);
+      CRM_Utils_Hook::tokenValues($contactArray,
+        array($contactID),
+        NULL,
+        CRM_Utils_Token::flattenTokens($tokens),
+        // we should consider adding groupName and valueName here
+        'CRM_Core_BAO_MessageTemplate'
+      );
+      $contact = $contactArray[$contactID];
+
+      $subject = CRM_Utils_Token::replaceHookTokens($subject, $contact, $categories, TRUE);
+      $text    = CRM_Utils_Token::replaceHookTokens($text, $contact, $categories, TRUE);
+      $html    = CRM_Utils_Token::replaceHookTokens($html, $contact, $categories, TRUE);
+    }
+
+    // strip whitespace from ends and turn into a single line
+    $subject = "{strip}$subject{/strip}";
+
+    // parse the three elements with Smarty
+
+
+    $smarty = CRM_Core_Smarty::singleton();
+    foreach ($params['tplParams'] as $name => $value) {
+      $smarty->assign($name, $value);
+    }
+    foreach (array(
+      'subject', 'text', 'html') as $elem) {
+      $$elem = $smarty->fetch("string:{$$elem}");
+    }
+
+    // send the template, honouring the target user’s preferences (if any)
+    $sent = FALSE;
+
+    // create the params array
+    $params['subject'] = $subject;
+    $params['text']    = $text;
+    $params['html']    = $html;
+
+    if ($params['toEmail']) {
+      $contactParams = array(array('email', 'LIKE', $params['toEmail'], 0, 1));
+      list($contact, $_) = CRM_Contact_BAO_Query::apiQuery($contactParams);
+
+      $prefs = array_pop($contact);
+
+      if (isset($prefs['preferred_mail_format']) and $prefs['preferred_mail_format'] == 'HTML') {
+        $params['text'] = NULL;
+      }
+
+      if (isset($prefs['preferred_mail_format']) and $prefs['preferred_mail_format'] == 'Text') {
+        $params['html'] = NULL;
+      }
+
+      $config = CRM_Core_Config::singleton();
+      $pdf_filename = '';
+      if ($config->doNotAttachPDFReceipt &&
+        $params['PDFFilename'] &&
+        $params['html']
+      ) {
+        $pdf_filename = $config->templateCompileDir . CRM_Utils_File::makeFileName($params['PDFFilename']);
+
+        //FIXME : CRM-7894
+        //xmlns attribute is required in XHTML but it is invalid in HTML,
+        //Also the namespace "xmlns=http://www.w3.org/1999/xhtml" is default,
+        //and will be added to the <html> tag even if you do not include it.
+        $html = preg_replace('/(<html)(.+?xmlns=["\'].[^\s]+["\'])(.+)?(>)/', '\1\3\4', $params['html']);
+
+        file_put_contents($pdf_filename, CRM_Utils_PDF_Utils::html2pdf($html,
+            $params['PDFFilename'],
+            TRUE,
+            $format
+          )
+        );
+
+        if (empty($params['attachments'])) {
+          $params['attachments'] = array();
+        }
+        $params['attachments'][] = array(
+          'fullPath' => $pdf_filename,
+          'mime_type' => 'application/pdf',
+          'cleanName' => $params['PDFFilename'],
+        );
+      }
+
+      $sent = viewAltersend($params);
+
+      if ($pdf_filename) {
+        unlink($pdf_filename);
+      }
+    }
+
+    return array($sent, $subject, $text, $html);
+  }
+  
+  
+  function viewAltersend(&$params) {
+    if (!civicrm_initialize()) {
+        return FALSE;
+      }
+    $returnPath       = CRM_Core_BAO_MailSettings::defaultReturnPath();
+    $includeMessageId = CRM_Core_BAO_MailSettings::includeMessageId();
+    $emailDomain      = CRM_Core_BAO_MailSettings::defaultDomain();
+    $from             = CRM_Utils_Array::value('from', $params);
+    if (!$returnPath) {
+      $returnPath = CRM_Utils_Mail::pluckEmailFromHeader($from);
+    }
+    $params['returnPath'] = $returnPath;
+
+    // first call the mail alter hook
+    CRM_Utils_Hook::alterMailParams($params);
+
+    // check if any module has aborted mail sending
+    if (
+      CRM_Utils_Array::value('abortMailSend', $params) ||
+      !CRM_Utils_Array::value('toEmail', $params)
+    ) {
+      return FALSE;
+    }
+
+    $textMessage = CRM_Utils_Array::value('text', $params);
+    $htmlMessage = CRM_Utils_Array::value('html', $params);
+    $attachments = CRM_Utils_Array::value('attachments', $params);
+
+    // CRM-6224
+    if (trim(CRM_Utils_String::htmlToText($htmlMessage)) == '') {
+      $htmlMessage = FALSE;
+    }
+
+    $headers         = array();
+    // CRM-10699 support custom email headers
+    if (CRM_Utils_Array::value('headers', $params)) {
+      $headers = array_merge($headers, $params['headers']);
+    }
+    $headers['From'] = $params['from'];
+    $headers['To']   =
+      CRM_Utils_Mail::formatRFC822Email(
+        CRM_Utils_Array::value('toName', $params),
+        CRM_Utils_Array::value('toEmail', $params),
+        FALSE
+      );
+    if($toExtra=CRM_Utils_Array::value('toExtra', $params)){
+    if(is_array($toExtra)){
+      if (!CRM_Utils_array::crmIsEmptyArray($toExtra)){
+        $tempToExtra=array();
+        foreach($toExtra as $vm=>$cinfo){
+             $tempToExtra[]=CRM_Utils_Mail::formatRFC822Email(
+                            CRM_Utils_Array::value('display_name', $cinfo),
+                            $vm,
+                            FALSE
+                            );
+        }
+        $toExtra=implode(',',$tempToExtra);
+         $headers['To'] = $headers['To'].",".$toExtra;
+      }
+    }
+    
+    
+  }
+    $headers['Cc'] = CRM_Utils_Array::value('cc', $params);
+    /**
+     * 
+     * any auto correspondence then cc’s iif@sifma.org
+     * 
+     * **/
+    if(!empty($headers['Cc'])){
+    $headers['Cc']=$headers['Cc'].",iif@sifma.org <iif@sifma.org>";
+    }else{
+		$headers['Cc']="iif@sifma.org <iif@sifma.org>";
+	}
+	
+	/**
+	 * End
+	 * **/
+    $headers['Bcc'] = CRM_Utils_Array::value('bcc', $params);
+    $headers['Subject'] = CRM_Utils_Array::value('subject', $params);
+    $headers['Content-Type'] = $htmlMessage ? 'multipart/mixed; charset=utf-8' : 'text/plain; charset=utf-8';
+    $headers['Content-Disposition'] = 'inline';
+    $headers['Content-Transfer-Encoding'] = '8bit';
+    $headers['Return-Path'] = CRM_Utils_Array::value('returnPath', $params);
+
+    // CRM-11295: Omit reply-to headers if empty; this avoids issues with overzealous mailservers
+    $replyTo = CRM_Utils_Array::value('replyTo', $params, $from);
+
+    if (!empty($replyTo)) {
+      $headers['Reply-To'] = $replyTo;
+    }
+    $headers['Date'] = date('r');
+    if ($includeMessageId) {
+      $headers['Message-ID'] = '<' . uniqid('civicrm_', TRUE) . "@$emailDomain>";
+    }
+    if (CRM_Utils_Array::value('autoSubmitted', $params)) {
+      $headers['Auto-Submitted'] = "Auto-Generated";
+    }
+
+    //make sure we has to have space, CRM-6977
+    foreach (array('From', 'To', 'Cc', 'Bcc', 'Reply-To', 'Return-Path') as $fld) {
+      if (isset($headers[$fld])) {
+        $headers[$fld] = str_replace('"<', '" <', $headers[$fld]);
+      }
+    }
+
+    // quote FROM, if comma is detected AND is not already quoted. CRM-7053
+    if (strpos($headers['From'], ',') !== FALSE) {
+      $from = explode(' <', $headers['From']);
+      $headers['From'] = CRM_Utils_Mail::formatRFC822Email(
+        $from[0],
+        substr(trim($from[1]), 0, -1),
+        TRUE
+      );
+    }
+
+    require_once 'Mail/mime.php';
+    $msg = new Mail_mime("\n");
+    if ($textMessage) {
+      $msg->setTxtBody($textMessage);
+    }
+
+    if ($htmlMessage) {
+      $msg->setHTMLBody($htmlMessage);
+    }
+
+    if (!empty($attachments)) {
+      foreach ($attachments as $fileID => $attach) {
+        $msg->addAttachment(
+          $attach['fullPath'],
+          $attach['mime_type'],
+          $attach['cleanName']
+        );
+      }
+    }
+
+    $message = CRM_Utils_Mail::setMimeParams($msg);
+    $headers = &$msg->headers($headers);
+
+    $to = array($headers['To']);
+    $result = null;
+    $mailer =& CRM_Core_Config::getMailer( );
+
+    // Mail_smtp and Mail_sendmail mailers require Bcc anc Cc emails
+    // be included in both $to and $headers['Cc', 'Bcc']
+    if (get_class($mailer) != "Mail_mail") {
+        //get emails from headers, since these are 
+        //combination of name and email addresses.
+        if ( CRM_Utils_Array::value( 'Cc', $headers ) ) {
+            $to[] = CRM_Utils_Array::value( 'Cc', $headers );
+        }
+        if ( CRM_Utils_Array::value( 'Bcc', $headers ) ) {
+            $to[] = CRM_Utils_Array::value( 'Bcc', $headers );
+        }
+    }
+    if (is_object($mailer)) {
+      $errorScope = CRM_Core_TemporaryErrorScope::ignoreException();
+      $result = $mailer->send($to, $headers, $message);
+      if (is_a($result, 'PEAR_Error')) {
+        $message = CRM_Utils_Mail::errorMessage($mailer, $result);
+        // append error message in case multiple calls are being made to
+        // this method in the course of sending a batch of messages.
+        CRM_Core_Session::setStatus($message, ts('Mailing Error'), 'error');
+        return FALSE;
+      }
+      // CRM-10699
+      CRM_Utils_Hook::postEmailSend($params);
+      return TRUE;
+    }
+    return FALSE;
+  }
+  
+  
+function view_alter_civicrm_aclWhereClause( $type, &$tables, &$whereTables, &$contactID, &$where ){
+  
+  if ( ! $contactID ) {
+    
+        return;
+    
+    }
+    GLOBAL $user;
+    $roles_array = $user->roles;
+    if(array_key_exists(11,$roles_array)){
+		return;  
+	}
+    $permissionTable = 'civicrm_value_dashboard_access_2';
+    $regionTable     = 'civicrm_address';
+    $fields          = array('state_administration_15' => 'Integer');
+    
+    $atype=CRM_Utils_Array::value('atype', $_GET,FALSE);
+    $aid=CRM_Utils_Array::value('id', $_GET,FALSE);
+    $acid=CRM_Utils_Array::value('cid', $_GET,FALSE);
+    if(!$atype && !$aid && !$acid){
+		$entryURL=CRM_Utils_Array::value('entryURL',$_POST,FALSE);
+		if($entryURL){
+			$urlquery=html_entity_decode(parse_url($entryURL, PHP_URL_QUERY));
+			parse_str($urlquery,$urlArray);
+			$atype=CRM_Utils_Array::value('atype', $urlArray,FALSE);
+            $aid=CRM_Utils_Array::value('id', $urlArray,FALSE);
+            $acid=CRM_Utils_Array::value('cid', $urlArray,FALSE);
+		}
+	}
+	if(!$atype && !$aid && $acid){
+		$activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+        $targetID = CRM_Utils_Array::key('Activity Targets', $activityContacts);
+        $assigneeID = CRM_Utils_Array::key('Activity Assignees', $activityContacts);
+        $address = new CRM_Core_DAO_Address();
+		//$address->contact_id=$acid;
+		$clauses = array( );
+		$address->location_type_id=2;
+		$contactType=CRM_Core_DAO::getFieldValue('CRM_Contact_DAO_Contact',$acid,'contact_type','id');
+		if($contactType!='Organization'){
+		$address->whereAdd(" contact_id in (SELECT     civicrm_activity_contact.contact_id
+							FROM       civicrm_activity_contact 
+							WHERE  civicrm_activity_contact.contact_id = $acid
+							AND civicrm_activity_contact.record_type_id IN ($assigneeID,$targetID)) ");
+		}
+		$keys = implode( ', ', array_keys( $fields ) );
+		$sql = "
+		SELECT $keys
+		FROM   {$permissionTable}
+		WHERE  entity_id = $contactID
+		";
+		$dao = CRM_Core_DAO::executeQuery( $sql);
+		if ( ! $dao->fetch( ) ) {
+        return;
+        }else{
+			foreach( $fields as $field => $fieldType ) {
+        if ( ! empty( $dao->$field ) ) {
+            if ( strpos( $dao->$field,CRM_Core_DAO::VALUE_SEPARATOR  ) !== false ) {
+                $value = substr( $dao->$field, 1, -1 );
+                $values = explode( CRM_Core_DAO::VALUE_SEPARATOR, $value );
+                foreach ( $values as $v ) {
+                    $inclauses[] = $v;
+                }
+            } else {
+                if ( $fieldType == 'String' ) {
+                    $inclauses[] = "'{$dao->$field}'";
+                } else {
+                    $inclauses[] = "{$dao->$field}";
+                }
+            }
+          }
+        }
+			
+		}
+		$keys = implode( ', ', array_filter( $inclauses ) );
+		$address->whereAdd("state_province_id in ({$keys} )");
+		if($address->find(true)){
+           $clauses[]=1;
+	   }else{
+		   $clauses[]=0;
+	   }
+		
+	}elseif($atype && $aid && $acid !=$contactID ){
+		$address = new CRM_Core_DAO_Address();
+		$address->contact_id=$acid;
+		$clauses = array( );
+		$address->location_type_id=2;
+		$keys = implode( ', ', array_keys( $fields ) );
+		$sql = "
+		SELECT $keys
+		FROM   {$permissionTable}
+		WHERE  entity_id = $contactID
+		";
+		$dao = CRM_Core_DAO::executeQuery( $sql);
+		if ( ! $dao->fetch( ) ) {
+        return;
+        }else{
+			foreach( $fields as $field => $fieldType ) {
+        if ( ! empty( $dao->$field ) ) {
+            if ( strpos( $dao->$field,CRM_Core_DAO::VALUE_SEPARATOR  ) !== false ) {
+                $value = substr( $dao->$field, 1, -1 );
+                $values = explode( CRM_Core_DAO::VALUE_SEPARATOR, $value );
+                foreach ( $values as $v ) {
+                    $inclauses[] = $v;
+                }
+            } else {
+                if ( $fieldType == 'String' ) {
+                    $inclauses[] = "'{$dao->$field}'";
+                } else {
+                    $inclauses[] = "{$dao->$field}";
+                }
+            }
+          }
+        }
+			
+		}
+		 $keys = implode( ', ', array_filter( $inclauses ) );
+		$address->whereAdd("state_province_id in ({$keys} )");
+		if($address->find(true)){
+           $clauses[]=1;
+	   }else{
+		   $clauses[]=0;
+	   }
+    }else{
+ 
+    // get all the values from the permission table for this contact
+    $keys = implode( ', ', array_keys( $fields ) );
+    $sql = "
+SELECT $keys
+FROM   {$permissionTable}
+WHERE  entity_id = $contactID
+";
+    $dao = CRM_Core_DAO::executeQuery( $sql);
+    if ( ! $dao->fetch( ) ) {
+        return;
+    }
+    $clauses = array( );
+    /*$extraLeftJoin="";
+    $contactgroup=CRM_ACL_BAO_ACL::group($type,$contactID);
+    if(!empty($contactgroup) && is_array($contactgroup)){
+    $contactgroup=implode(",",$contactgroup);
+        $clauses[]="cgc.group_id in ({$contactgroup}) "; 
+        $extraLeftJoin=" LEFT JOIN civicrm_group_contact cgc ON(contact_a.id = cgc.contact_id AND cgc.status='Added') ";
+     }elseif(!empty($contactgroup) && !is_array($contactgroup)){
+     $clauses[]="cgc.group_id in ({$contactgroup}) "; 
+     $extraLeftJoin=" LEFT JOIN civicrm_group_contact cgc ON(contact_a.id = cgc.contact_id AND cgc.status='Added') ";
+   }*/
+    $tables[$regionTable] = $whereTables[$regionTable] =
+        "LEFT JOIN {$regionTable} regionTable ON (contact_a.id = regionTable.contact_id AND regionTable.location_type_id=2)
+         LEFT JOIN {$regionTable} ON (contact_a.id = {$regionTable}.contact_id) ";
+ 
+   
+    foreach( $fields as $field => $fieldType ) {
+        if ( ! empty( $dao->$field ) ) {
+            if ( strpos( $dao->$field,CRM_Core_DAO::VALUE_SEPARATOR  ) !== false ) {
+                $value = substr( $dao->$field, 1, -1 );
+                $values = explode( CRM_Core_DAO::VALUE_SEPARATOR, $value );
+                foreach ( $values as $v ) {
+                    $clauses[] = "regionTable.state_province_id = $v";
+                }
+            } else {
+                if ( $fieldType == 'String' ) {
+                    $clauses[] = "regionTable.state_province_id = '{$dao->$field}'";
+                } else {
+                    $clauses[] = "regionTable.state_province_id = {$dao->$field}";
+                }
+            }
+          }
+        }
+    }
+    if ( ! empty( $clauses ) ) {
+    if(!empty($where)){
+              $where .= ' AND (' . implode( ' OR ', $clauses ) . ')';
+      }else{
+        
+         $where = '  (' . implode( ' OR ', $clauses ) . ')';
+        
+      }
+        
+    }
+}
+
+function view_alter_civicrm_aclGroup( $type, $contactID, $tableName, &$allGroups, &$currentGroups ){
+  if($type !==CRM_Core_Permission::ADMIN 
+      && $contactID !==null 
+      && $tableName!=='civicrm_uf_group'){
+  $currentGroups = array_keys( $allGroups );
+  }
+  
+}
+
+function referer_path() {
+  if (!empty($_SERVER['HTTP_REFERER'])) {
+    $url = parse_url($_SERVER['HTTP_REFERER']);
+    if ($url['path'][0] == '/') {
+      $url['path'] = substr($url['path'], 1);
+    }
+    include_once DRUPAL_ROOT . '/includes/language.inc';
+    list(, $path) = language_url_split_prefix($url['path'], language_list());
+    return $path;
+  }
+}
+
+/*function view_alter_form_alter(&$form, &$form_state, $form_id) {
+  switch($form_id) {
+    case 'user_register_form':
+      $path=referer_path();
+      $path=trim($path);
+      if(!in_array($path,array('enroll/educator','enroll/volunteer'))){
+       $form['#access'] = FALSE;
+       drupal_not_found();
+      }
+    break;
+    case 'webform_client_form_20':
+    /*if (!civicrm_initialize()) {
+        return FALSE;
+      }*/
+    /*foreach($form['#node']->webform['components'] as $k=>$el){
+		$elName=CRM_Utils_Array::value('form_key', $el,FALSE);
+		if($elName=='civicrm_1_activity_1_activity_details'){
+			if($form['submitted'][$elName]['#type']=='textarea'){
+				$form['submitted'][$elName]['#type']='text_format';
+				//$form['submitted'][$elName]['#wysiwyg'] = TRUE;
+				$form['submitted'][$elName]['#format']='full_html';
+			}
+			
+		}
+	}*/
+    /*$title=drupal_get_title();
+    $teacherCid=CRM_Utils_Array::value('cid', $_GET,FALSE);
+    if(!$teacherCid){
+		$teacherCid=CRM_Utils_Array::value('cid1', $_GET,FALSE);
+	}
+    if($teacherCid){
+		
+		$displayName = CRM_Core_DAO::getFieldValue('CRM_Contact_DAO_Contact', $teacherCid, 'display_name');
+		$title=ucwords($displayName) .' - '.$title;
+		drupal_set_title($title);
+	}*/
+    
+   /* break;
+  }
+}*/
+
+function view_alter_civicrm_custom( $op, $groupID, $entityID, &$params ){
+	/**
+	 *  Custom Group ID That We have to Update for Firm Administrator group
+	 * 
+	 * **/
+	if(($op=="create" || $op=="edit") && $groupID==2){
+		foreach($params as $fields){
+		   if($fields['custom_field_id']==30 && CRM_Utils_Array::value('value',$fields,0)==1){
+			  civicrm_api3('group_contact', 'create', array(
+							  'contact_id' => $entityID,
+							  'group_id' => 51,
+							  'status' => 'Added',
+							));
+		   }elseif($fields['custom_field_id']==30 && CRM_Utils_Array::value('value',$fields,0)==0){
+			   civicrm_api3('group_contact', 'create', array(
+							  'contact_id' => $entityID,
+							  'group_id' => 51,
+							  'status' => 'Removed',
+							));
+			   
+		   }
+	   }
+		
+	}
+	
+} 
+
+
+/*
+ * Approved request alert for create mailjob for approved request alert  URL approved-request/alert
+ *
+ **/
+ 
+ function approved_request_alert(){
+	  civicrm_initialize(true);   
+	  $notificationGroupID = 92; //Notification mailling list group;
+	  $messageTemplateID  = 85 ; // Email Notification template ID.
+	  $searchRadius = 50 ; // Radius in miles
+	  $contactsNotificationList = array();  // List of contacts to whom going to fired email.
+	  $entireNotificationContacts = array(); // Entire Contact Notification
+	  /*
+	   *  Retrive All Records From notificationGroupID
+	   * */
+	  $entireNotificationContacts = CRM_Contact_BAO_Group::getMember($notificationGroupID);
+	  $entireNotificationContacts = array_keys($entireNotificationContacts);
+	  /**
+	   *  Get sql for notificationGroupID
+	   * */
+	  $sqlContactsnotificationGroupID=ViewAltergetSqlQueryGroupContact($notificationGroupID);
+	  
+      /**
+	   *  Retrive All Teacher Requests in status “Approved” Future date
+	   */
+	  $approvedRequestResults=views_get_view_result('available_volunteer_opportunities','available');
+	  
+	  foreach($approvedRequestResults as $key=>$request){
+		 /**
+		  *  Check request is future date.
+		  */
+		 if(!CRM_Utils_Date::overdue($request->civicrm_value_iif_request_1_latest_date_3) && !empty($request->civicrm_contact_civicrm_activity_contact__civicrm_address2_s)){
+			 
+			 $requestParams = array();
+			 /**
+			  *  Find Country Name.
+			  */
+			 $StateProvincedao = new CRM_Core_DAO_StateProvince();
+			 $StateProvincedao->id = $request->civicrm_contact_civicrm_activity_contact__civicrm_address2_s;
+			 $StateProvincedao->find(true);
+			 
+			 $requestParams['street_address'] = $request->civicrm_contact_civicrm_activity_contact__civicrm_address_st;
+			 $requestParams['city'] = $request->civicrm_contact_civicrm_activity_contact__civicrm_address2_c;
+			 $requestParams['postal_code'] = $request->civicrm_contact_civicrm_activity_contact__civicrm_address_po;
+			 $requestParams['state_province'] = CRM_Core_PseudoConstant::stateProvince( $request->civicrm_contact_civicrm_activity_contact__civicrm_address2_s, false );
+			 $requestParams['country'] = CRM_Core_PseudoConstant::country( $StateProvincedao->country_id );
+			 $requestParams['geo_code_1'] =  $request->civicrm_contact_civicrm_activity_contact__civicrm_address_ge;
+			 $requestParams['geo_code_2'] = $request->civicrm_contact_civicrm_activity_contact__civicrm_address_ge_1;
+			 if(!empty($request->civicrm_contact_civicrm_activity_contact__civicrm_address2_s) 
+			    && !empty($StateProvincedao->country_id)){
+			 /**
+			  *  Find out sucessfull Geocode else Continue for second Record.
+			  */
+			  if(!empty($requestParams['geo_code_1']) && !empty($requestParams['geo_code_2'])){
+				 
+				 /**
+				  * get Contacts within 50 miles radius from subscribed groups
+				  */
+				$selectClause = "select contact_a.id as contact_id  
+	                  FROM      civicrm_contact contact_a
+                      INNER JOIN civicrm_address address ON ( address.contact_id       = contact_a.id AND
+                                       address.location_type_id       = 2 )
+                      INNER JOIN civicrm_state_province state_province ON state_province.id = address.state_province_id
+                      INNER JOIN civicrm_country country               ON country.id        = address.country_id  ";
+				 $where = CRM_Contact_BAO_ProximityQuery::where($requestParams['geo_code_1'],
+																$requestParams['geo_code_2'],
+																 $searchRadius * 1609.344,
+																  'address'
+																);
+				$sql=$selectClause ." WHERE  {$where}  AND contact_a.is_deleted != 1 
+				                      AND contact_a.id IN ( {$sqlContactsnotificationGroupID} ) "; 
+				
+				$sqlDao = CRM_Core_DAO::executeQuery( $sql);
+		        
+		        while (  $sqlDao->fetch( ) ) {
+			     
+			     $contactsNotificationList[]=$sqlDao->contact_id;
+		        
+		        }  
+			 }
+		   } 
+		 }
+
+	  }
+	  // Remove duplicate contacts. from notification list
+	  
+	  $contactsNotificationList = array_values(array_unique($contactsNotificationList));
+	  $excludeMailingContactList=array_values(array_diff($entireNotificationContacts,$contactsNotificationList));
+	  
+	 /**
+	  * Create a Exclude Mailling Group
+	  */
+ 
+		$params = array();
+		$params['title'] = "Volunter Request Approval Mailling Group";
+		$params['description'] = "Volunter Request Approval Mailling Group";
+		$params['group_type'] = CRM_Core_DAO::VALUE_SEPARATOR ."2" . CRM_Core_DAO::VALUE_SEPARATOR;;
+		$params['visibility'] = 'User and User Admin Only';
+		$params['is_active'] = 1;
+		$group = CRM_Contact_BAO_Group::create($params);
+		/*
+		 * Add Contact to this Group
+		 **/
+		CRM_Contact_BAO_GroupContact::addContactsToGroup($excludeMailingContactList,$group->id);
+		
+		/**
+		 *  Get Message template
+		 */
+		$messageTemplate = civicrm_api3('MessageTemplate', 'getsingle', array('id' => $messageTemplateID));
+		/**
+		 *  Create email Jobs 
+		 */ 
+		 
+	    $params = array(
+					'subject'   => $messageTemplate['msg_subject'],
+					'body_text' => isset($messageTemplate['msg_text']) ? $messageTemplate['msg_text'] : null,
+					'body_html' => $messageTemplate['msg_html'],
+					'name' => 'Approval Request Alert Job',
+					'created_id' => CRM_Core_Session::singleton()->getLoggedInContactID(),
+					'header_id' => '',
+					'footer_id' => 10,
+					'forward_replies'=>1,
+					'groups' => array(
+					
+					  'include' => array(
+					  
+					             $notificationGroupID
+					             
+					  ),
+					  'exclude' => array(
+					  
+								$group->id
+					   ),
+					),
+					'mailings' => array(
+					
+					  'include' => array(),
+					  
+					  'exclude' => array(),
+					  
+					),
+					'options' => array(
+					  //'force_rollback' => 1,
+					),
+					'api.mailing_job.create' => 1,
+					'api.MailingRecipients.get' => array(
+					  'mailing_id' => '$value.id',
+					  'api.contact.getvalue' => array(
+						'return' => 'display_name',
+					  ),
+					  'api.email.getvalue' => array(
+						'return' => 'email',
+					  ),
+					),
+				  );
+
+       try{
+		   
+               $result = civicrm_api3('Mailing', 'create', $params);
+     
+     }catch (CiviCRM_API3_Exception $e) {
+       // Handle error here.
+       drupal_set_message(t($e->getMessage()),'error'); 
+   }
+	 //$groupTypes = CRM_Core_OptionGroup::values('group_type', TRUE);
+	  CRM_Contact_BAO_Group::discard($group->id);
+	  drupal_set_message(t('Mailing ID :id has been Created sucessfully',array(':id'=>$result['id'])),'status'); 
+	 return t('Mailing ID :id has been Created sucessfully',array(':id'=>$result['id']));
+ }
+ 
+ 
+ /*
+  *  Email Notification Opportunity Token
+  * **/
+  
+  function view_alter_civicrm_tokens(&$tokens) {
+  $tokens['emailnotification'] = array(
+    'emailnotification.opportunities' => 'All Opportunity of given contact within 50 miles radius(Email Notification)'
+  );
+}
+
+/*
+ * Email Notification Email Token Values
+ * 
+ * **/
+ 
+  function view_alter_civicrm_tokenValues(&$values, $cids, $job = null, $tokens = array(), $context = null) {
+  $contacts = implode(',', $cids);
+  $tokens += array(
+    'emailnotification' => array(),
+  );
+   $notificationGroupID = 92; //Notification mailling list group;
+   $searchRadius = 50 ; // Radius in miles
+  // Fill first name and nick name with default values
+  if (array_key_exists('opportunities', $tokens['emailnotification'])) {
+	 $opportunities=getContactsOpportunities($notificationGroupID,$searchRadius);
+	 foreach($cids as $cid){
+		   $opportunitiesBody=implode("",$opportunities[$cid]);
+		   $opportunitiesHTML="<table style='border-collapse:collapse;width:100%;border:1px solid;'>
+		                          <thead>
+								   <tr>
+									<th style='border:1px solid;'>No.</th>
+									<th style='border:1px solid;'>Request Type</th>
+									<th style='border:1px solid;'>School / Organization</th>
+									<th style='border:1px solid;'>City</th>
+									<th style='border:1px solid;'>State</th>
+									<th style='border:1px solid;'>Complete By</th>
+									<th style='border:1px solid;'>Day(s) of Week</th>
+									<th style='border:1px solid;'>Time of Day</th>
+									<th style='border:1px solid;'>Grade Level</th>
+									<th style='border:1px solid;'>Class Size</th>
+								   </tr>
+								 </thead>
+								 <tbody>
+								 {$opportunitiesBody}
+								 </tbody>
+							   </table>";
+           $values[$cid]['emailnotification.opportunities']=$opportunitiesHTML;
+     }
+  }
+}
+
+
+
+/*
+ *  Get Contact's Opportunity token Values
+ * */
+
+   function getContactsOpportunities($notificationGroupID,$searchRadius,$token='emailnotification.opportunities'){
+	  civicrm_initialize(true);
+	  $contactsNotificationList = array();  // List of contacts to whom going to fired email.
+      /**
+	   *  Retrive All Teacher Requests in status “Approved” Future date
+	   */
+	  $sql="SELECT DISTINCT civicrm_activity.id AS id, civicrm_value_iif_request_1.request_type_11 AS civicrm_value_iif_request_1_request_type_11,
+	        civicrm_contact_civicrm_activity_contact.organization_name AS civicrm_contact_civicrm_activity_contact_organization_name,
+	        civicrm_contact_civicrm_activity_contact__civicrm_address.street_address AS civicrm_contact_civicrm_activity_contact__civicrm_address_st,
+	        civicrm_contact_civicrm_activity_contact__civicrm_address2.city AS civicrm_contact_civicrm_activity_contact__civicrm_address2_c,
+	        civicrm_contact_civicrm_activity_contact__civicrm_address2.state_province_id AS civicrm_contact_civicrm_activity_contact__civicrm_address2_s,
+	        civicrm_contact_civicrm_activity_contact__civicrm_address.postal_code AS civicrm_contact_civicrm_activity_contact__civicrm_address_po,
+	        civicrm_value_iif_request_1.earliest_date_2 AS civicrm_value_iif_request_1_earliest_date_2,
+	        civicrm_value_iif_request_1.latest_date_3 AS civicrm_value_iif_request_1_latest_date_3, 
+	        civicrm_value_iif_request_1.days_of_week_4 AS civicrm_value_iif_request_1_days_of_week_4, 
+	        civicrm_value_iif_request_1.time_of_day_5 AS civicrm_value_iif_request_1_time_of_day_5, 
+	        civicrm_value_iif_request_1.grade_level_10 AS civicrm_value_iif_request_1_grade_level_10,
+	        civicrm_value_iif_request_1.class_size_6 AS civicrm_value_iif_request_1_class_size_6,
+	        civicrm_activity.activity_type_id AS civicrm_activity_activity_type_id,
+	        civicrm_contact_civicrm_activity_contact__civicrm_address.geo_code_1 AS civicrm_contact_civicrm_activity_contact__civicrm_address_ge,
+	        civicrm_contact_civicrm_activity_contact__civicrm_address.geo_code_2 AS civicrm_contact_civicrm_activity_contact__civicrm_address_ge_1
+            FROM {civicrm_activity} civicrm_activity
+            LEFT JOIN {civicrm_activity_contact} civicrm_activity_contact 
+                        ON civicrm_activity.id = civicrm_activity_contact.activity_id AND (civicrm_activity_contact.record_type_id = '3')
+            LEFT JOIN {civicrm_contact} civicrm_contact_civicrm_activity_contact 
+                        ON civicrm_activity_contact.contact_id = civicrm_contact_civicrm_activity_contact.id
+            LEFT JOIN {civicrm_value_iif_request_1} civicrm_value_iif_request_1 
+                        ON civicrm_activity.id = civicrm_value_iif_request_1.entity_id
+            LEFT JOIN {civicrm_address} civicrm_contact_civicrm_activity_contact__civicrm_address 
+                        ON civicrm_contact_civicrm_activity_contact.id = civicrm_contact_civicrm_activity_contact__civicrm_address.contact_id 
+                              AND (civicrm_contact_civicrm_activity_contact__civicrm_address.location_type_id = '2' 
+                                      AND civicrm_contact_civicrm_activity_contact__civicrm_address.is_primary = '1')
+            LEFT JOIN {civicrm_address} civicrm_contact_civicrm_activity_contact__civicrm_address2 
+                        ON civicrm_contact_civicrm_activity_contact.id = civicrm_contact_civicrm_activity_contact__civicrm_address2.contact_id 
+                              AND (civicrm_contact_civicrm_activity_contact__civicrm_address2.location_type_id = '2')
+           WHERE (( (civicrm_activity.activity_type_id IN  ('53')) 
+                 AND (civicrm_value_iif_request_1.request_type_11 LIKE '%1%' 
+                       OR civicrm_value_iif_request_1.request_type_11 LIKE '%2%' 
+                       OR civicrm_value_iif_request_1.request_type_11 LIKE '%3%' 
+                       OR civicrm_value_iif_request_1.request_type_11 LIKE '%5%' ) 
+                       AND (civicrm_activity.status_id IN  ('11')) ))
+           ORDER BY civicrm_value_iif_request_1_latest_date_3 ASC";
+	  $approvedRequestResults=db_query($sql);
+	  //$approvedRequestResults=views_get_view_result('available_volunteer_opportunities','available');
+	  foreach($approvedRequestResults as $key=>$request){
+		 /**
+		  *  Check request is future date.
+		  */
+		 if(!CRM_Utils_Date::overdue($request->civicrm_value_iif_request_1_latest_date_3) && !empty($request->civicrm_contact_civicrm_activity_contact__civicrm_address2_s)){
+			 
+			 
+			 $requestParams = array();
+			 /**
+			  *  Find Country Name.
+			  */
+			 $StateProvincedao = new CRM_Core_DAO_StateProvince();
+			 $StateProvincedao->id = $request->civicrm_contact_civicrm_activity_contact__civicrm_address2_s;
+			 $StateProvincedao->find(true);
+			 $requestParams['street_address'] = $request->civicrm_contact_civicrm_activity_contact__civicrm_address_st;
+			 $requestParams['city'] = $request->civicrm_contact_civicrm_activity_contact__civicrm_address2_c;
+			 $requestParams['postal_code'] = $request->civicrm_contact_civicrm_activity_contact__civicrm_address_po;
+			 $requestParams['state_province'] = CRM_Core_PseudoConstant::stateProvince( $request->civicrm_contact_civicrm_activity_contact__civicrm_address2_s, false );
+			 $requestParams['country'] = CRM_Core_PseudoConstant::country( $StateProvincedao->country_id );
+			 $requestParams['geo_code_1'] =  $request->civicrm_contact_civicrm_activity_contact__civicrm_address_ge;
+			 $requestParams['geo_code_2'] = $request->civicrm_contact_civicrm_activity_contact__civicrm_address_ge_1;
+			 if(!empty($request->civicrm_contact_civicrm_activity_contact__civicrm_address2_s) 
+			    && !empty($StateProvincedao->country_id)){
+			 /**
+			  *  Find out sucessfull Geocode else Continue for second Record.
+			  */
+			  if(!empty($requestParams['geo_code_1']) && !empty($requestParams['geo_code_2'])){
+			 // Token for request Type
+			 $requestTypeoptionValues=CRM_Core_BAO_CustomOption::getCustomOption(11);
+			 $requestType=array();
+			 $requestTypecheckedData= explode(CRM_Core_DAO::VALUE_SEPARATOR, 
+			                      trim($request->civicrm_value_iif_request_1_request_type_11, CRM_Core_DAO::VALUE_SEPARATOR));
+			 foreach($requestTypeoptionValues as $opt){
+				 if (in_array($opt['value'],$requestTypecheckedData )) {
+				 $requestType[$opt['value']]=$opt['label'];
+			   }
+			 }
+			 $requestParams['request_type'] = implode(',',$requestType);
+			 // Request end by date
+			 $requestParams['latest_date'] = date('D, m/d/y',strtotime($request->civicrm_value_iif_request_1_latest_date_3));
+			 //Token for day of Weeks
+			 $daysofWeek=array();
+			 $daysOfWeekcheckedData= explode(CRM_Core_DAO::VALUE_SEPARATOR, 
+			                      trim($request->civicrm_value_iif_request_1_days_of_week_4, CRM_Core_DAO::VALUE_SEPARATOR));
+			 $days_of_weekOption=CRM_Core_BAO_CustomOption::getCustomOption(4);
+			 foreach($days_of_weekOption as $opt){
+				 if (in_array($opt['value'],$daysOfWeekcheckedData )) {
+				 $daysofWeek[$opt['value']]=$opt['label'];
+			   }
+			 }
+			 $requestParams['days_of_week']=implode(", ",$daysofWeek);
+			 // Token for time of day
+			 $timeofDay=array();
+			 $timeofDaycheckedData= explode(CRM_Core_DAO::VALUE_SEPARATOR, 
+			                      trim($request->civicrm_value_iif_request_1_time_of_day_5, CRM_Core_DAO::VALUE_SEPARATOR));
+			 $timeofDayOption=CRM_Core_BAO_CustomOption::getCustomOption(5);
+			 foreach($timeofDayOption as $opt){
+				 if (in_array($opt['value'],$timeofDaycheckedData )) {
+				 $timeofDay[$opt['value']]=$opt['label'];
+			   }
+			 }
+			 $requestParams['time_of_day']=implode(", ",$timeofDay);
+			 // Token for Grade level
+			 $gradeLevel=array();
+			 $gradeLevelcheckedData= explode(CRM_Core_DAO::VALUE_SEPARATOR, 
+			                      trim($request->civicrm_value_iif_request_1_grade_level_10, CRM_Core_DAO::VALUE_SEPARATOR));
+			 $gradeLevelOption=CRM_Core_BAO_CustomOption::getCustomOption(10);
+			 foreach($gradeLevelOption as $opt){
+				 if (in_array($opt['value'],$gradeLevelcheckedData )) {
+				 $gradeLevel[$opt['value']]=$opt['label'];
+			   }
+			 }
+			 $requestParams['grade_level']=implode(", ",$gradeLevel);
+				  
+				  /**
+				   *  Get sql for notificationGroupID
+				   * */
+				  $sqlContactsnotificationGroupID=ViewAltergetSqlQueryGroupContact($notificationGroupID);
+				 
+				 /**
+				  * get Contacts within 50 miles radius from subscribed groups
+				  */
+				 
+				 $selectClause = "select contact_a.id as contact_id  
+	                  FROM      civicrm_contact contact_a
+                      INNER JOIN civicrm_address address ON ( address.contact_id       = contact_a.id AND
+                                       address.location_type_id       = 2 )
+                      INNER JOIN civicrm_state_province state_province ON state_province.id = address.state_province_id
+                      INNER JOIN civicrm_country country               ON country.id        = address.country_id  ";
+				 $where = CRM_Contact_BAO_ProximityQuery::where($requestParams['geo_code_1'],
+																$requestParams['geo_code_2'],
+																 $searchRadius * 1609.344,
+																  'address'
+																);
+				$sql=$selectClause ." WHERE  {$where}  AND contact_a.is_deleted != 1 
+				                      AND contact_a.id IN ({$sqlContactsnotificationGroupID}) "; 
+				$sqlDao = CRM_Core_DAO::executeQuery( $sql);
+		        
+		        while (  $sqlDao->fetch( ) ) {
+			       
+			       $contactsNotificationList[$sqlDao->contact_id][]=ts("<tr>
+																			<td style='border:1px solid;'>%1</td>
+																			<td style='border:1px solid;'>%2</td>
+																			<td style='border:1px solid;'>%3</td>
+																			<td style='border:1px solid;'>%4</td>
+																			<td style='border:1px solid;'>%5</td>
+																			<td style='border:1px solid;'>%6</td>
+																			<td style='border:1px solid;'>%7</td>
+																			<td style='border:1px solid;'>%8</td>
+																			<td style='border:1px solid;text-align:center;'>%9</td>
+																			<td style='border:1px solid;text-align:center;'>%10</td>
+																		</tr>",array(1=>$request->id,
+																					 2=>$requestParams['request_type'],
+																					 3=>$request->civicrm_contact_civicrm_activity_contact_organization_name,
+																					 4=>$requestParams['city'],
+																					 5=>$requestParams['state_province'],
+																					 6=>$requestParams['latest_date'],
+																					 7=>$requestParams['days_of_week'],
+																					 8=>$requestParams['time_of_day'],
+																					 9=>$requestParams['grade_level'],
+																					 10=>$request->civicrm_value_iif_request_1_class_size_6
+																					) 
+																		);
+		        
+		        } 
+				 
+			 }
+			 
+		   }
+			 
+		 }
+		 
+	  }
+	  
+     return  $contactsNotificationList;
+   }
+/**
+ *  Get sql to get contact of given Group ID
+ * **/   
+   
+ function ViewAltergetSqlQueryGroupContact($groupID){
+	   $params = array(array('group', '=', $groupID, 0, 0));
+      $returnProperties = array('contact_id');
+	  $query = new CRM_Contact_BAO_Query(
+										  $params, $returnProperties,
+										  NULL, TRUE, FALSE, CRM_Contact_BAO_Query::MODE_CONTACTS,
+										  TRUE,
+										  TRUE, TRUE,
+										  NULL, 'AND',
+										  NULL, NULL
+										);
+	   $query->_skipDeleteClause = TRUE;
+	   $query->generatePermissionClause(FALSE, FALSE);
+	   $query->includePseudoFieldsJoin(NULL);
+
+       list($select, $from, $where, $having) = $query->query(false);
+
+    $options = $query->_options;
+    if (!empty($query->_permissionWhereClause)) {
+      if (empty($where)) {
+        $where = "WHERE $query->_permissionWhereClause";
+      }
+      else {
+        $where = "$where AND $query->_permissionWhereClause";
+      }
+    }
+
+    $sql = "$select $from $where $having";
+	return $sql;
+   }
